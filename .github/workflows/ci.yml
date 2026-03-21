@@ -21,7 +21,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          path: ansible_collections/cubepathinc/cloud
+          path: ansible_collections/cubepath/cloud
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -32,7 +32,7 @@ jobs:
         run: pip install "https://github.com/ansible/ansible/archive/${{ matrix.ansible-version }}.tar.gz"
 
       - name: Run sanity tests
-        working-directory: ansible_collections/cubepathinc/cloud
+        working-directory: ansible_collections/cubepath/cloud
         run: ansible-test sanity --docker -v --color
 
   lint:

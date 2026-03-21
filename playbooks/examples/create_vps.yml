@@ -1,0 +1,32 @@
+---
+- name: Create VPS on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+  tasks:
+    - name: Create project
+      cubepathinc.cloud.project:
+        api_token: "{{ cubepath_token }}"
+        name: demo-project
+        state: present
+      register: project
+
+    - name: Create VPS
+      cubepathinc.cloud.vps:
+        api_token: "{{ cubepath_token }}"
+        name: web-01
+        project_id: "{{ project.project.id }}"
+        plan: gp.nano
+        template: debian-13
+        location: eu-bcn-1
+        ssh_keys:
+          - deploy-key
+        ipv4: true
+        state: present
+      register: server
+
+    - name: Show server details
+      ansible.builtin.debug:
+        var: server.vps

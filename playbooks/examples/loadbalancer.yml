@@ -1,0 +1,21 @@
+---
+- name: Setup Load Balancer on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: cubepathinc.cloud.setup_loadbalancer
+      setup_loadbalancer_api_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+      setup_loadbalancer_name: web-lb
+      setup_loadbalancer_plan: lb.small
+      setup_loadbalancer_location: eu-bcn-1
+      setup_loadbalancer_listeners:
+        - name: http
+          protocol: http
+          source_port: 80
+          target_port: 8080
+          algorithm: round_robin
+          health_check:
+            protocol: http
+            path: /health
+            interval: 30

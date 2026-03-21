@@ -1,0 +1,32 @@
+- name: Ensure project exists
+  cubepathinc.cloud.project:
+    api_token: "{{ deploy_vps_api_token }}"
+    name: "{{ deploy_vps_project_name }}"
+    state: present
+  register: deploy_vps_project
+  when: deploy_vps_project_name | length > 0
+
+- name: Add SSH keys
+  cubepathinc.cloud.ssh_key:
+    api_token: "{{ deploy_vps_api_token }}"
+    name: "{{ item.name }}"
+    public_key: "{{ item.key }}"
+    state: present
+  loop: "{{ deploy_vps_ssh_keys }}"
+  when: deploy_vps_ssh_keys | length > 0
+
+- name: Deploy VPS
+  cubepathinc.cloud.vps:
+    api_token: "{{ deploy_vps_api_token }}"
+    name: "{{ deploy_vps_name }}"
+    project_id: "{{ deploy_vps_project.project.id | default(omit) }}"
+    plan: "{{ deploy_vps_plan }}"
+    template: "{{ deploy_vps_template }}"
+    location: "{{ deploy_vps_location }}"
+    ssh_keys: "{{ deploy_vps_ssh_keys | map(attribute='name') | list }}"
+    ipv4: "{{ deploy_vps_ipv4 }}"
+    backups: "{{ deploy_vps_backups }}"
+    network_id: "{{ deploy_vps_network_id | default(omit) }}"
+    cloudinit: "{{ deploy_vps_cloudinit | default(omit) }}"
+    state: "{{ deploy_vps_state }}"
+  register: deploy_vps_result

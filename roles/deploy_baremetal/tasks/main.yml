@@ -1,0 +1,20 @@
+- name: Deploy baremetal server
+  cubepathinc.cloud.baremetal:
+    api_token: "{{ deploy_baremetal_api_token }}"
+    project_id: "{{ deploy_baremetal_project_id }}"
+    location: "{{ deploy_baremetal_location }}"
+    model: "{{ deploy_baremetal_model }}"
+    hostname: "{{ deploy_baremetal_hostname }}"
+    password: "{{ deploy_baremetal_password }}"
+    os: "{{ deploy_baremetal_os | default(omit) }}"
+    disk_layout: "{{ deploy_baremetal_disk_layout | default(omit) }}"
+    ssh_key: "{{ deploy_baremetal_ssh_key | default(omit) }}"
+    user: "{{ deploy_baremetal_user }}"
+  register: deploy_baremetal_result
+
+- name: Enable monitoring
+  cubepathinc.cloud.baremetal_action:
+    api_token: "{{ deploy_baremetal_api_token }}"
+    action: monitoring_enable
+    baremetal_id: "{{ deploy_baremetal_result.baremetal.id }}"
+  when: deploy_baremetal_monitoring | bool and deploy_baremetal_result.changed

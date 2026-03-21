@@ -1,0 +1,13 @@
+setup_dns_api_token: "{{ vault_cubepath_token | default(omit) }}"
+setup_dns_zones: []
+# setup_dns_zones:
+#   - domain: example.com
+#     project_id: 1
+#     verify: true
+#     records:
+#       - name: "@"
+#         type: A
+#         content: "1.2.3.4"
+#       - name: "www"
+#         type: CNAME
+#         content: "example.com"

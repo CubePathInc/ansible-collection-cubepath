@@ -1,0 +1,23 @@
+---
+- name: Setup DNS on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  roles:
+    - role: cubepathinc.cloud.setup_dns
+      setup_dns_api_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+      setup_dns_zones:
+        - domain: example.com
+          project_id: 1
+          verify: true
+          records:
+            - name: "@"
+              type: A
+              content: "1.2.3.4"
+            - name: "www"
+              type: CNAME
+              content: "example.com"
+            - name: "@"
+              type: MX
+              content: "mail.example.com"
+              priority: 10

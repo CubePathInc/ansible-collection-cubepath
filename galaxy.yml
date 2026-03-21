@@ -1,0 +1,30 @@
+namespace: cubepathinc
+name: cloud
+version: 1.1.1
+readme: README.md
+authors:
+  - CubePath <support@cubepath.com>
+description: Ansible collection for managing CubePath Cloud infrastructure
+license:
+  - GPL-3.0-or-later
+tags:
+  - cloud
+  - cubepath
+  - vps
+  - baremetal
+  - dns
+  - loadbalancer
+  - cdn
+  - infrastructure
+  - networking
+repository: https://github.com/CubePathInc/cubepath.ansible
+documentation: https://github.com/CubePathInc/cubepath.ansible
+homepage: https://cubepath.com
+issues: https://github.com/CubePathInc/cubepath.ansible/issues
+build_ignore:
+  - "*.tar.gz"
+  - .git
+  - .gitignore
+  - .github
+  - .githooks
+  - tests/

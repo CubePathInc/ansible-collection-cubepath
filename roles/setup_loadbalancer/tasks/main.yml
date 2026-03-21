@@ -1,0 +1,45 @@
+- name: Create load balancer
+  cubepathinc.cloud.loadbalancer:
+    api_token: "{{ setup_loadbalancer_api_token }}"
+    name: "{{ setup_loadbalancer_name }}"
+    plan: "{{ setup_loadbalancer_plan }}"
+    location: "{{ setup_loadbalancer_location }}"
+    state: present
+  register: setup_loadbalancer_lb
+
+- name: Create listeners
+  cubepathinc.cloud.loadbalancer_listener:
+    api_token: "{{ setup_loadbalancer_api_token }}"
+    lb_uuid: "{{ setup_loadbalancer_lb.loadbalancer.uuid }}"
+    name: "{{ item.name }}"
+    protocol: "{{ item.protocol | default('http') }}"
+    source_port: "{{ item.source_port }}"
+    target_port: "{{ item.target_port }}"
+    algorithm: "{{ item.algorithm | default('round_robin') }}"
+    state: present
+  loop: "{{ setup_loadbalancer_listeners }}"
+  register: setup_loadbalancer_listener_results
+
+- name: Configure health checks
+  cubepathinc.cloud.loadbalancer_health_check:
+    api_token: "{{ setup_loadbalancer_api_token }}"
+    lb_uuid: "{{ setup_loadbalancer_lb.loadbalancer.uuid }}"
+    listener_uuid: "{{ item.listener.uuid }}"
+    protocol: "{{ item.item.health_check.protocol | default('http') }}"
+    path: "{{ item.item.health_check.path | default('/') }}"
+    interval: "{{ item.item.health_check.interval | default(30) }}"
+    state: present
+  loop: "{{ setup_loadbalancer_listener_results.results }}"
+  when: item.item.health_check is defined
+
+- name: Add targets
+  cubepathinc.cloud.loadbalancer_target:
+    api_token: "{{ setup_loadbalancer_api_token }}"
+    lb_uuid: "{{ setup_loadbalancer_lb.loadbalancer.uuid }}"
+    listener_uuid: "{{ item.0.listener.uuid }}"
+    target_type: "{{ item.1.type }}"
+    target_uuid: "{{ item.1.uuid }}"
+    weight: "{{ item.1.weight | default(100) }}"
+    state: present
+  loop: "{{ setup_loadbalancer_listener_results.results | subelements('item.targets', skip_missing=True) }}"
+  when: item.0.listener is defined

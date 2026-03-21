@@ -1,0 +1,124 @@
+---
+name: Release Collection
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+
+jobs:
+  build:
+    name: Build Collection Artifact
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: pip install ansible-core
+
+      - name: Validate version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME}"
+          GALAXY_VERSION=$(grep '^version:' galaxy.yml | awk '{print $2}')
+          if [ "$TAG_VERSION" != "$GALAXY_VERSION" ]; then
+            echo "ERROR: Tag version ($TAG_VERSION) does not match galaxy.yml version ($GALAXY_VERSION)"
+            exit 1
+          fi
+          echo "VERSION=$TAG_VERSION" >> "$GITHUB_ENV"
+
+      - name: Build collection
+        run: ansible-galaxy collection build --force
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: collection-build
+          path: cubepathinc-cloud-${{ env.VERSION }}.tar.gz
+          retention-days: 5
+
+    outputs:
+      version: ${{ env.VERSION }}
+
+  publish-galaxy:
+    name: Publish to Ansible Galaxy
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: collection-build
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: pip install ansible-core
+
+      - name: Publish to Galaxy
+        run: ansible-galaxy collection publish cubepathinc-cloud-${{ needs.build.outputs.version }}.tar.gz --api-key "${{ secrets.GALAXY_API_KEY }}"
+
+  github-release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: collection-build
+
+      - name: Generate changelog from commits
+        id: changelog
+        run: |
+          PREVIOUS_TAG=$(git tag --sort=-v:refname | head -2 | tail -1)
+          if [ -z "$PREVIOUS_TAG" ] || [ "$PREVIOUS_TAG" = "${GITHUB_REF_NAME}" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" -20)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" "${PREVIOUS_TAG}..${GITHUB_REF_NAME}")
+          fi
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "v${{ needs.build.outputs.version }}"
+          body: |
+            ## CubePath Cloud Ansible Collection v${{ needs.build.outputs.version }}
+
+            ### Installation
+
+            ```bash
+            ansible-galaxy collection install cubepathinc.cloud:==${{ needs.build.outputs.version }}
+            ```
+
+            Or download the `.tar.gz` artifact and install locally:
+
+            ```bash
+            ansible-galaxy collection install cubepathinc-cloud-${{ needs.build.outputs.version }}.tar.gz
+            ```
+
+            ### Changes
+
+            ${{ steps.changelog.outputs.changelog }}
+          files: cubepathinc-cloud-${{ needs.build.outputs.version }}.tar.gz
+          generate_release_notes: false

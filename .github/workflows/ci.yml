@@ -1,0 +1,75 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  sanity:
+    name: Ansible Sanity Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ansible-version:
+          - stable-2.16
+          - stable-2.17
+          - stable-2.18
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          path: ansible_collections/cubepath/cloud
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible (${{ matrix.ansible-version }})
+        run: pip install "https://github.com/ansible/ansible/archive/${{ matrix.ansible-version }}.tar.gz"
+
+      - name: Run sanity tests
+        working-directory: ansible_collections/cubepath/cloud
+        run: ansible-test sanity --docker -v --color
+
+  lint:
+    name: Ansible Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ansible-core ansible-lint
+
+      - name: Run ansible-lint
+        run: ansible-lint playbooks/examples/
+
+  build:
+    name: Build Collection
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: pip install ansible-core
+
+      - name: Build collection
+        run: ansible-galaxy collection build --force
+
+      - name: Verify artifact exists
+        run: ls -la cubepathinc-cloud-*.tar.gz

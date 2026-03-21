@@ -1,0 +1,11 @@
+deploy_baremetal_api_token: "{{ vault_cubepath_token | default(omit) }}"
+deploy_baremetal_project_id: null
+deploy_baremetal_hostname: ""
+deploy_baremetal_location: "eu-bcn-1"
+deploy_baremetal_model: ""
+deploy_baremetal_password: ""
+deploy_baremetal_os: ""
+deploy_baremetal_disk_layout: ""
+deploy_baremetal_ssh_key: ""
+deploy_baremetal_user: root
+deploy_baremetal_monitoring: true

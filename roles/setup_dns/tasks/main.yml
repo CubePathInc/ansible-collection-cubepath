@@ -1,0 +1,29 @@
+- name: Create DNS zones
+  cubepathinc.cloud.dns_zone:
+    api_token: "{{ setup_dns_api_token }}"
+    domain: "{{ item.domain }}"
+    project_id: "{{ item.project_id }}"
+    state: present
+  loop: "{{ setup_dns_zones }}"
+  register: setup_dns_zone_results
+
+- name: Verify DNS zones
+  cubepathinc.cloud.dns_zone:
+    api_token: "{{ setup_dns_api_token }}"
+    domain: "{{ item.item.domain }}"
+    state: verified
+  loop: "{{ setup_dns_zone_results.results }}"
+  when: item.item.verify | default(false) | bool
+
+- name: Create DNS records
+  cubepathinc.cloud.dns_record:
+    api_token: "{{ setup_dns_api_token }}"
+    zone_uuid: "{{ item.0.zone.uuid }}"
+    name: "{{ item.1.name }}"
+    record_type: "{{ item.1.type }}"
+    content: "{{ item.1.content }}"
+    ttl: "{{ item.1.ttl | default(3600) }}"
+    priority: "{{ item.1.priority | default(omit) }}"
+    state: present
+  loop: "{{ setup_dns_zone_results.results | subelements('item.records', skip_missing=True) }}"
+  when: item.0.zone is defined

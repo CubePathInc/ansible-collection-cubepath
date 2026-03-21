@@ -1,0 +1,19 @@
+setup_loadbalancer_api_token: "{{ vault_cubepath_token | default(omit) }}"
+setup_loadbalancer_name: ""
+setup_loadbalancer_plan: "lb.small"
+setup_loadbalancer_location: "eu-bcn-1"
+setup_loadbalancer_listeners: []
+# setup_loadbalancer_listeners:
+#   - name: http
+#     protocol: http
+#     source_port: 80
+#     target_port: 8080
+#     algorithm: round_robin
+#     health_check:
+#       protocol: http
+#       path: /health
+#       interval: 30
+#     targets:
+#       - type: vps
+#         uuid: "abc-123"
+#         weight: 100

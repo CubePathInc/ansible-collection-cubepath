@@ -1,0 +1,12 @@
+deploy_vps_api_token: "{{ vault_cubepath_token | default(omit) }}"
+deploy_vps_project_name: ""
+deploy_vps_name: ""
+deploy_vps_plan: "gp.nano"
+deploy_vps_template: "debian-13"
+deploy_vps_location: "eu-bcn-1"
+deploy_vps_ssh_keys: []
+deploy_vps_ipv4: true
+deploy_vps_backups: false
+deploy_vps_network_id: null
+deploy_vps_cloudinit: ""
+deploy_vps_state: present

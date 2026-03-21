@@ -1,0 +1,38 @@
+---
+- name: Setup CDN on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+  tasks:
+    - name: Create CDN zone
+      cubepathinc.cloud.cdn_zone:
+        api_token: "{{ cubepath_token }}"
+        name: my-cdn
+        plan: cdn.starter
+        custom_domain: cdn.example.com
+        state: present
+      register: cdn
+
+    - name: Add origin
+      cubepathinc.cloud.cdn_origin:
+        api_token: "{{ cubepath_token }}"
+        zone_uuid: "{{ cdn.zone.uuid }}"
+        name: primary-origin
+        address: "1.2.3.4"
+        port: 443
+        protocol: https
+        state: present
+
+    - name: Add cache rule
+      cubepathinc.cloud.cdn_rule:
+        api_token: "{{ cubepath_token }}"
+        zone_uuid: "{{ cdn.zone.uuid }}"
+        name: cache-static
+        rule_type: cache
+        action_config:
+          cache_ttl: 86400
+        match_conditions:
+          path_pattern: "*.css,*.js,*.png,*.jpg"
+        state: present

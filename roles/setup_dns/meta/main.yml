@@ -1,0 +1,8 @@
+galaxy_info:
+  role_name: setup_dns
+  namespace: cubepath
+  author: CubePath
+  description: Configure DNS zones and records on CubePath Cloud
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.15"
+dependencies: []

@@ -1,0 +1,67 @@
+---
+- name: Full Stack Deployment on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+  tasks:
+    - name: Create project
+      cubepathinc.cloud.project:
+        api_token: "{{ cubepath_token }}"
+        name: production
+        state: present
+      register: project
+
+    - name: Add SSH key
+      cubepathinc.cloud.ssh_key:
+        api_token: "{{ cubepath_token }}"
+        name: deploy-key
+        public_key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+        state: present
+
+    - name: Create network
+      cubepathinc.cloud.network:
+        api_token: "{{ cubepath_token }}"
+        name: prod-network
+        project_id: "{{ project.project.id }}"
+        location: eu-bcn-1
+        ip_range: "10.0.0.0"
+        prefix: 24
+        state: present
+      register: network
+
+    - name: Create web servers
+      cubepathinc.cloud.vps:
+        api_token: "{{ cubepath_token }}"
+        name: "web-{{ item }}"
+        project_id: "{{ project.project.id }}"
+        plan: gp.nano
+        template: debian-13
+        location: eu-bcn-1
+        ssh_keys:
+          - deploy-key
+        network_id: "{{ network.network.id }}"
+        state: present
+      loop: ["01", "02"]
+      register: web_servers
+
+    - name: Setup DNS
+      cubepathinc.cloud.dns_zone:
+        api_token: "{{ cubepath_token }}"
+        domain: example.com
+        project_id: "{{ project.project.id }}"
+        state: present
+      register: dns_zone
+
+    - name: Add DNS records
+      cubepathinc.cloud.dns_record:
+        api_token: "{{ cubepath_token }}"
+        zone_uuid: "{{ dns_zone.zone.uuid }}"
+        name: "{{ item.name }}"
+        record_type: "{{ item.type }}"
+        content: "{{ item.content }}"
+        state: present
+      loop:
+        - { name: "@", type: A, content: "{{ web_servers.results[0].vps.main_ip }}" }
+        - { name: "www", type: CNAME, content: "example.com" }

@@ -44,7 +44,7 @@ def main():
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
     api = CubePathAPI(module)
 
-    result = api.get('/vps/os')
+    result = api.get('/vps/templates')
     module.exit_json(
         changed=False,
         templates=result.get('operating_systems', []),

@@ -39,9 +39,10 @@ options:
     disk_layout:
         description: Disk layout name.
         type: str
-    ssh_key:
-        description: SSH key name.
-        type: str
+    ssh_key_ids:
+        description: List of SSH key IDs to attach.
+        type: list
+        elements: int
     label:
         description: Server label. Defaults to hostname.
         type: str
@@ -61,7 +62,8 @@ EXAMPLES = r'''
     hostname: db-01
     password: "{{ vault_password }}"
     os: Debian 13
-    ssh_key: deploy-key
+    ssh_key_ids:
+      - 12
 '''
 
 RETURN = r'''
@@ -86,7 +88,7 @@ def main():
         password=dict(type='str', required=True, no_log=True),
         os=dict(type='str'),
         disk_layout=dict(type='str'),
-        ssh_key=dict(type='str', no_log=False),
+        ssh_key_ids=dict(type='list', elements='int', no_log=False),
         label=dict(type='str'),
         user=dict(type='str', default='root'),
     )
@@ -115,8 +117,8 @@ def main():
         data['os_name'] = module.params['os']
     if module.params.get('disk_layout'):
         data['disk_layout_name'] = module.params['disk_layout']
-    if module.params.get('ssh_key'):
-        data['ssh_key_name'] = module.params['ssh_key']
+    if module.params.get('ssh_key_ids'):
+        data['ssh_key_ids'] = module.params['ssh_key_ids']
 
     result = api.post('/baremetal/deploy/%d' % project_id, data)
     module.exit_json(changed=True, baremetal=result)

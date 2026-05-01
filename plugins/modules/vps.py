@@ -34,10 +34,10 @@ options:
     location:
         description: Location (e.g. eu-bcn-1). Required when I(state=present).
         type: str
-    ssh_keys:
-        description: List of SSH key names to attach.
+    ssh_key_ids:
+        description: List of SSH key IDs to attach.
         type: list
-        elements: str
+        elements: int
     password:
         description: Root password for the server.
         type: str
@@ -75,8 +75,8 @@ EXAMPLES = r'''
     plan: gp.nano
     template: debian-13
     location: eu-bcn-1
-    ssh_keys:
-      - deploy-key
+    ssh_key_ids:
+      - 12
     state: present
 
 - name: Destroy VPS
@@ -108,7 +108,7 @@ def main():
         plan=dict(type='str'),
         template=dict(type='str'),
         location=dict(type='str'),
-        ssh_keys=dict(type='list', elements='str', no_log=False),
+        ssh_key_ids=dict(type='list', elements='int', no_log=False),
         password=dict(type='str', no_log=True),
         ipv4=dict(type='bool', default=True),
         label=dict(type='str'),
@@ -147,8 +147,8 @@ def main():
             'ipv4': module.params['ipv4'],
             'enable_backups': module.params['backups'],
         }
-        if module.params.get('ssh_keys'):
-            data['ssh_key_names'] = module.params['ssh_keys']
+        if module.params.get('ssh_key_ids'):
+            data['ssh_key_ids'] = module.params['ssh_key_ids']
         if module.params.get('password'):
             data['password'] = module.params['password']
         if module.params.get('network_id') is not None:

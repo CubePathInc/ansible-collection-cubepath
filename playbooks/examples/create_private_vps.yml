@@ -1,0 +1,48 @@
+---
+# Create a VPS without public IPs (private network only).
+# Disabling ipv4 and ipv6 requires network_id so the VPS keeps connectivity
+# through the private network.
+- name: Create private-only VPS on CubePath Cloud
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+  tasks:
+    - name: Create project
+      cubepathinc.cloud.project:
+        api_token: "{{ cubepath_token }}"
+        name: private-only-demo
+        state: present
+      register: project
+
+    - name: Create private network
+      cubepathinc.cloud.network:
+        api_token: "{{ cubepath_token }}"
+        name: internal
+        project_id: "{{ project.project.id }}"
+        location: eu-bcn-1
+        ip_range: 10.0.1.0
+        prefix: 24
+        state: present
+      register: net
+
+    - name: Create VPS with no public IPs
+      cubepathinc.cloud.vps:
+        api_token: "{{ cubepath_token }}"
+        name: db-internal
+        project_id: "{{ project.project.id }}"
+        plan: gp.nano
+        template: debian-13
+        location: eu-bcn-1
+        network_id: "{{ net.network.id }}"
+        ssh_key_ids:
+          - 12
+        ipv4: false
+        ipv6: false
+        state: present
+      register: server
+
+    - name: Show server details
+      ansible.builtin.debug:
+        var: server.vps

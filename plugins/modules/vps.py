@@ -45,6 +45,12 @@ options:
         description: Enable dedicated IPv4.
         type: bool
         default: true
+    ipv6:
+        description:
+            - Enable public IPv6.
+            - When set to C(false) the VPS is deployed without a public IPv6 address; in that case I(network_id) is required so the VPS keeps connectivity.
+        type: bool
+        default: true
     label:
         description: Label for the server. Defaults to name.
         type: str
@@ -111,6 +117,7 @@ def main():
         ssh_key_ids=dict(type='list', elements='int', no_log=False),
         password=dict(type='str', no_log=True),
         ipv4=dict(type='bool', default=True),
+        ipv6=dict(type='bool', default=True),
         label=dict(type='str'),
         network_id=dict(type='int'),
         backups=dict(type='bool', default=False),
@@ -145,6 +152,7 @@ def main():
             'location_name': module.params['location'],
             'label': module.params.get('label') or name,
             'ipv4': module.params['ipv4'],
+            'ipv6': module.params['ipv6'],
             'enable_backups': module.params['backups'],
         }
         if module.params.get('ssh_key_ids'):

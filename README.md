@@ -36,8 +36,11 @@ All modules require a CubePath API token. You can provide it via:
 ### Networking
 - `cubepathinc.cloud.network` - Manage private networks
 - `cubepathinc.cloud.network_info` - List networks
+- `cubepathinc.cloud.network_route` - Manage static routes on a private network
 - `cubepathinc.cloud.floating_ip` - Manage floating IP lifecycle and assignments
 - `cubepathinc.cloud.floating_ip_info` - List floating IPs
+- `cubepathinc.cloud.nat_gateway` - Manage NAT gateways
+- `cubepathinc.cloud.nat_gateway_info` - List NAT gateways and available plans
 
 ### DNS
 - `cubepathinc.cloud.dns_zone` - Manage DNS zones

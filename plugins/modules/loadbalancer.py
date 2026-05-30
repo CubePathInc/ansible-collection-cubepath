@@ -37,6 +37,9 @@ options:
     lb_uuid:
         description: LB UUID for deletion or updates.
         type: str
+    network_id:
+        description: Private network ID to attach the load balancer to.
+        type: int
 '''
 
 EXAMPLES = r'''
@@ -85,6 +88,7 @@ def main():
         project_id=dict(type='int'),
         label=dict(type='str'),
         lb_uuid=dict(type='str'),
+        network_id=dict(type='int'),
     )
 
     module = AnsibleModule(
@@ -126,6 +130,8 @@ def main():
             data['project_id'] = module.params['project_id']
         if module.params.get('label'):
             data['label'] = module.params['label']
+        if module.params.get('network_id') is not None:
+            data['network_id'] = module.params['network_id']
 
         result = api.post('/loadbalancer/', data)
         module.exit_json(changed=True, loadbalancer=result)

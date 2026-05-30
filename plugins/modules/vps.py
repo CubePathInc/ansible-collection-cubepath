@@ -70,6 +70,9 @@ options:
     vps_id:
         description: ID of the VPS. Used for I(state=absent).
         type: int
+    availability_group_uuid:
+        description: UUID of the availability group to place the VPS into.
+        type: str
 '''
 
 EXAMPLES = r'''
@@ -124,6 +127,7 @@ def main():
         firewall_id=dict(type='int'),
         cloudinit=dict(type='str'),
         vps_id=dict(type='int'),
+        availability_group_uuid=dict(type='str'),
     )
 
     module = AnsibleModule(
@@ -165,6 +169,8 @@ def main():
             data['firewall_group_ids'] = [module.params['firewall_id']]
         if module.params.get('cloudinit'):
             data['custom_cloudinit'] = module.params['cloudinit']
+        if module.params.get('availability_group_uuid'):
+            data['availability_group_uuid'] = module.params['availability_group_uuid']
 
         result = api.post('/vps/create/%d' % project_id, data)
         module.exit_json(changed=True, vps=result)

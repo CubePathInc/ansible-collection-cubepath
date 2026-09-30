@@ -8,6 +8,8 @@ module: dns_zone
 short_description: Manage DNS zones on CubePath Cloud
 description:
     - Create, delete, or verify DNS zones on CubePath Cloud.
+    - The module finds an existing zone by I(domain). With I(state=present), a zone in another project than
+      I(project_id) is moved there.
 version_added: "1.1.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -23,7 +25,9 @@ options:
         type: str
         required: true
     project_id:
-        description: Project ID. Required when I(state=present).
+        description:
+            - Project ID. Required when I(state=present).
+            - An existing zone in another project is moved to this one.
         type: int
     zone_uuid:
         description: Zone UUID. Required when I(state=absent) or I(state=verified) if domain lookup fails.
@@ -93,11 +97,16 @@ def main():
     state = module.params['state']
     domain = module.params['domain']
 
-    existing = find_zone(api, domain, module.params.get('project_id'))
+    existing = find_zone(api, domain)
 
     if state == 'present':
         if existing:
-            module.exit_json(changed=False, zone=existing)
+            if existing.get('project_id') == module.params['project_id']:
+                module.exit_json(changed=False, zone=existing)
+            if module.check_mode:
+                module.exit_json(changed=True, zone=existing)
+            api.post('/dns/zones/%s/move-project' % existing['uuid'], {'project_id': module.params['project_id']})
+            module.exit_json(changed=True, zone=find_zone(api, domain))
         if module.check_mode:
             module.exit_json(changed=True)
         result = api.post('/dns/zones', {'domain': domain, 'project_id': module.params['project_id']})

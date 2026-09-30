@@ -8,6 +8,8 @@ module: loadbalancer
 short_description: Manage load balancers on CubePath Cloud
 description:
     - Create, update, resize, or delete load balancers on CubePath Cloud.
+    - The module finds an existing load balancer by I(name). On an existing one it updates I(label) and
+      I(protected), resizes it to I(resize_plan), and moves it to I(project_id) when it is in another project.
 version_added: "1.1.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -29,7 +31,9 @@ options:
         description: Location. Required when I(state=present).
         type: str
     project_id:
-        description: Project ID.
+        description:
+            - Project ID.
+            - An existing load balancer in another project is moved to this one.
         type: int
     label:
         description: Optional label.
@@ -40,6 +44,18 @@ options:
     network_id:
         description: Private network ID to attach the load balancer to.
         type: int
+    resize_plan:
+        description:
+            - When set on an existing load balancer on another plan, resize it to this plan.
+            - Has no effect when creating a new load balancer.
+        type: str
+        version_added: "1.5.0"
+    protected:
+        description:
+            - Deletion protection. A protected load balancer cannot be deleted.
+            - With I(state=absent), C(false) disables protection before deleting.
+        type: bool
+        version_added: "1.5.0"
 '''
 
 EXAMPLES = r'''
@@ -78,6 +94,29 @@ def find_lb(api, name):
     return None
 
 
+def update_existing(module, api, existing):
+    """Apply label, protection, plan and project changes to an existing load balancer."""
+    p = module.params
+    uuid = existing.get('uuid')
+    calls = []
+    if p.get('label') and existing.get('label') != p['label']:
+        calls.append(('patch', '/loadbalancer/%s' % uuid, {'label': p['label']}))
+    if p.get('protected') is not None and p['protected'] != bool(existing.get('protected')):
+        calls.append(('post', '/loadbalancer/%s/protection' % uuid, {'enabled': p['protected']}))
+    # Only resize to a different plan: the API rejects a resize to the current one.
+    if p.get('resize_plan') and p['resize_plan'] != existing.get('plan_name'):
+        calls.append(('post', '/loadbalancer/%s/resize' % uuid, {'plan_name': p['resize_plan']}))
+    if p.get('project_id') and p['project_id'] != existing.get('project_id'):
+        calls.append(('post', '/loadbalancer/%s/move-project' % uuid, {'project_id': p['project_id']}))
+    if not calls:
+        return dict(changed=False, loadbalancer=existing)
+    if module.check_mode:
+        return dict(changed=True, loadbalancer=existing)
+    for method, path, data in calls:
+        getattr(api, method)(path, data)
+    return dict(changed=True, loadbalancer=find_lb(api, p['name']))
+
+
 def main():
     argument_spec = cubepath_argument_spec()
     argument_spec.update(
@@ -89,6 +128,8 @@ def main():
         label=dict(type='str'),
         lb_uuid=dict(type='str'),
         network_id=dict(type='int'),
+        resize_plan=dict(type='str'),
+        protected=dict(type='bool'),
     )
 
     module = AnsibleModule(
@@ -105,19 +146,7 @@ def main():
 
     if state == 'present':
         if existing:
-            changed = False
-            uuid = existing.get('uuid')
-            update_data = {}
-            if module.params.get('label') and existing.get('label') != module.params['label']:
-                update_data['label'] = module.params['label']
-                changed = True
-            if update_data:
-                if module.check_mode:
-                    module.exit_json(changed=True)
-                result = api.patch('/loadbalancer/%s' % uuid, update_data)
-                module.exit_json(changed=True, loadbalancer=result)
-            module.exit_json(changed=False, loadbalancer=existing)
-
+            module.exit_json(**update_existing(module, api, existing))
         if module.check_mode:
             module.exit_json(changed=True)
 
@@ -134,6 +163,8 @@ def main():
             data['network_id'] = module.params['network_id']
 
         result = api.post('/loadbalancer/', data)
+        if module.params.get('protected'):
+            api.post('/loadbalancer/%s/protection' % result['uuid'], {'enabled': True})
         module.exit_json(changed=True, loadbalancer=result)
 
     elif state == 'absent':
@@ -144,6 +175,8 @@ def main():
             module.exit_json(changed=False)
         if module.check_mode:
             module.exit_json(changed=True)
+        if existing and module.params.get('protected') is False and existing.get('protected'):
+            api.post('/loadbalancer/%s/protection' % uuid, {'enabled': False})
         api.delete('/loadbalancer/%s' % uuid)
         module.exit_json(changed=True)
 

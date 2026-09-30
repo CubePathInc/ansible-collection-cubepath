@@ -2,7 +2,7 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-import time
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import wait_for  # noqa: F401 pylint: disable=unused-import
 
 
 def list_buckets(api, project_id=None):
@@ -33,17 +33,3 @@ def find_key(api, name, project_id=None, tier=None):
             continue
         return key
     return None
-
-
-def wait_for(module, fetch, done, timeout, interval=5):
-    """Poll `fetch()` until `done(item)` is true. `fetch` returns None once the resource is gone."""
-    deadline = time.time() + timeout
-    item = fetch()
-    while not done(item):
-        if time.time() >= deadline:
-            module.fail_json(msg='Timed out after %ss waiting for the resource' % timeout, resource=item)
-        if item and item.get('status') == 'error':
-            module.fail_json(msg='The resource ended in error: %s' % (item.get('error_message') or 'unknown error'), resource=item)
-        time.sleep(interval)
-        item = fetch()
-    return item

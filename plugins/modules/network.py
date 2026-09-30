@@ -7,7 +7,9 @@ DOCUMENTATION = r'''
 module: network
 short_description: Manage private networks on CubePath Cloud
 description:
-    - Create or delete private networks on CubePath Cloud.
+    - Create, update or delete private networks on CubePath Cloud.
+    - The module finds an existing network by I(name). On an existing network it updates I(label), and
+      moves the network to I(project_id) when it is in another project.
 version_added: "1.0.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -23,7 +25,9 @@ options:
         type: str
         required: true
     project_id:
-        description: Project ID. Required when I(state=present).
+        description:
+            - Project ID. Required when I(state=present).
+            - An existing network in another project is moved to this one.
         type: int
     location:
         description: Location. Required when I(state=present).
@@ -63,7 +67,7 @@ network:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
-from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import find_resource_in_projects
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import find_resource_with_project
 
 
 def main():
@@ -89,11 +93,23 @@ def main():
     state = module.params['state']
     name = module.params['name']
 
-    existing = find_resource_in_projects(api, 'networks', 'name', name)
+    existing, existing_project = find_resource_with_project(api, 'networks', 'name', name)
 
     if state == 'present':
         if existing:
-            module.exit_json(changed=False, network=existing)
+            changed = False
+            label = module.params.get('label')
+            if label is not None and label != existing.get('label'):
+                if not module.check_mode:
+                    api.put('/networks/%d' % existing['id'], {'name': name, 'label': label})
+                changed = True
+            if module.params['project_id'] != existing_project:
+                if not module.check_mode:
+                    api.post('/networks/%d/move-project' % existing['id'], {'project_id': module.params['project_id']})
+                changed = True
+            if changed and not module.check_mode:
+                existing = find_resource_with_project(api, 'networks', 'name', name)[0]
+            module.exit_json(changed=changed, network=existing)
         if module.check_mode:
             module.exit_json(changed=True)
 

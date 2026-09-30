@@ -7,7 +7,8 @@ DOCUMENTATION = r'''
 module: ssh_key
 short_description: Manage SSH keys on CubePath Cloud
 description:
-    - Create or delete SSH keys on CubePath Cloud.
+    - Create, rename or delete SSH keys on CubePath Cloud.
+    - The module finds an existing key by I(name). To rename a key, give its I(ssh_key_id) and the new I(name).
 version_added: "1.0.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -23,10 +24,12 @@ options:
         type: str
         required: true
     public_key:
-        description: Public key content. Required when I(state=present).
+        description: Public key content. Required to create a key.
         type: str
     ssh_key_id:
-        description: SSH key ID. Used for I(state=absent).
+        description:
+            - SSH key ID. Used for I(state=absent).
+            - With I(state=present), the key with this ID is renamed to I(name) when its name differs.
         type: int
 '''
 
@@ -37,6 +40,12 @@ EXAMPLES = r'''
     name: my-key
     public_key: "ssh-ed25519 AAAA... user@host"
     state: present
+
+- name: Rename a key
+  cubepathinc.cloud.ssh_key:
+    api_token: "{{ cubepath_token }}"
+    ssh_key_id: 64
+    name: laptop-2026
 '''
 
 RETURN = r'''
@@ -75,7 +84,6 @@ def main():
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        required_if=[('state', 'present', ['public_key'])],
         supports_check_mode=True,
     )
 
@@ -87,6 +95,17 @@ def main():
     if state == 'present':
         if existing:
             module.exit_json(changed=False, ssh_key=existing)
+        key_id = module.params.get('ssh_key_id')
+        if key_id is not None:
+            by_id = next((k for k in get_ssh_keys(api) if k.get('id') == key_id), None)
+            if by_id is None:
+                module.fail_json(msg='SSH key %d not found' % key_id)
+            if module.check_mode:
+                module.exit_json(changed=True)
+            api.put('/sshkey/%d' % key_id, {'name': name})
+            module.exit_json(changed=True, ssh_key=find_ssh_key(api, name))
+        if not module.params.get('public_key'):
+            module.fail_json(msg='public_key is required to create an SSH key')
         if module.check_mode:
             module.exit_json(changed=True)
         result = api.post('/sshkey/create', {'name': name, 'ssh_key': module.params['public_key']})

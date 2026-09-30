@@ -44,9 +44,8 @@ def main():
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
     api = CubePathAPI(module)
 
-    result = api.get('/pricing')
-    vps_data = result.get('vps', result)
-    locations = vps_data.get('locations', [])
+    result = api.get('/vps/plans')
+    locations = result.get('locations', []) if isinstance(result, dict) else []
 
     location = module.params.get('location')
     if location:

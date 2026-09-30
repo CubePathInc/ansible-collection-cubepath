@@ -1,0 +1,58 @@
+---
+- name: Kubernetes cluster with an ingress controller
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+  tasks:
+    - name: Create the cluster
+      cubepathinc.cloud.kubernetes_cluster:
+        api_token: "{{ cubepath_token }}"
+        name: prod
+        project_id: 1
+        location: eu-bcn-1
+        node_pools:
+          - name: default
+            plan: gp.small
+            count: 2
+            auto_scale: false
+        state: present
+      register: cluster
+
+    - name: Add a tainted pool for batch jobs
+      cubepathinc.cloud.kubernetes_node_pool:
+        api_token: "{{ cubepath_token }}"
+        cluster: prod
+        name: batch
+        plan: gp.medium
+        count: 1
+        labels:
+          workload: batch
+        taints:
+          - key: dedicated
+            value: batch
+            effect: NoSchedule
+        state: present
+
+    - name: Install the NGINX ingress controller
+      cubepathinc.cloud.kubernetes_addon:
+        api_token: "{{ cubepath_token }}"
+        cluster: prod
+        slug: ingress-nginx
+        state: present
+
+    - name: Fetch the kubeconfig
+      cubepathinc.cloud.kubernetes_info:
+        api_token: "{{ cubepath_token }}"
+        cluster: prod
+        gather:
+          - kubeconfig
+      register: prod
+      no_log: true
+
+    - name: Save the kubeconfig
+      ansible.builtin.copy:
+        content: "{{ prod.kubeconfig }}"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/prod.yaml"
+        mode: "0600"

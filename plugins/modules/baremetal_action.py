@@ -8,6 +8,10 @@ module: baremetal_action
 short_description: Perform actions on baremetal servers on CubePath Cloud
 description:
     - Reinstall, rescue, reset BMC, update, or manage monitoring on CubePath Cloud.
+    - Cancel a reinstall, enable or disable destruction protection, move the server to another project,
+      attach or detach SSH keys, and attach or detach its private network.
+    - SSH key changes only update the keys recorded for the server (used by reinstalls). Network changes
+      apply after a restart of the server.
 version_added: "1.0.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -17,7 +21,8 @@ options:
         description: Action to perform.
         type: str
         required: true
-        choices: [reinstall, rescue, reset_bmc, update, monitoring_enable, monitoring_disable]
+        choices: [reinstall, rescue, reset_bmc, update, monitoring_enable, monitoring_disable, cancel_reinstall,
+                  protect, unprotect, move_project, add_ssh_keys, remove_ssh_key, attach_network, detach_network]
     baremetal_id:
         description: ID of the baremetal server.
         type: int
@@ -41,6 +46,21 @@ options:
     tags:
         description: Tags for update.
         type: str
+    project_id:
+        description: Target project. Required when I(action=move_project).
+        type: int
+        version_added: "1.5.0"
+    ssh_key_ids:
+        description:
+            - SSH key IDs. Required when I(action=add_ssh_keys) or I(action=remove_ssh_key)
+              (C(remove_ssh_key) removes each of them).
+        type: list
+        elements: int
+        version_added: "1.5.0"
+    network_id:
+        description: Private network ID in the location of the server. Required when I(action=attach_network).
+        type: int
+        version_added: "1.5.0"
 '''
 
 EXAMPLES = r'''
@@ -58,6 +78,13 @@ EXAMPLES = r'''
     api_token: "{{ cubepath_token }}"
     action: rescue
     baremetal_id: 10
+
+- name: Move a server to another project
+  cubepathinc.cloud.baremetal_action:
+    api_token: "{{ cubepath_token }}"
+    action: move_project
+    baremetal_id: 10
+    project_id: 7
 '''
 
 RETURN = r'''
@@ -76,7 +103,8 @@ def main():
     argument_spec.update(
         action=dict(type='str', required=True, choices=[
             'reinstall', 'rescue', 'reset_bmc', 'update',
-            'monitoring_enable', 'monitoring_disable',
+            'monitoring_enable', 'monitoring_disable', 'cancel_reinstall', 'protect', 'unprotect',
+            'move_project', 'add_ssh_keys', 'remove_ssh_key', 'attach_network', 'detach_network',
         ]),
         baremetal_id=dict(type='int', required=True),
         os=dict(type='str'),
@@ -85,11 +113,20 @@ def main():
         password=dict(type='str', no_log=True),
         disk_layout=dict(type='str'),
         tags=dict(type='str'),
+        project_id=dict(type='int'),
+        ssh_key_ids=dict(type='list', elements='int', no_log=False),
+        network_id=dict(type='int'),
     )
 
     module = AnsibleModule(
         argument_spec=argument_spec,
-        required_if=[('action', 'reinstall', ['os', 'hostname', 'password'])],
+        required_if=[
+            ('action', 'reinstall', ['os', 'hostname', 'password']),
+            ('action', 'move_project', ['project_id']),
+            ('action', 'add_ssh_keys', ['ssh_key_ids']),
+            ('action', 'remove_ssh_key', ['ssh_key_ids']),
+            ('action', 'attach_network', ['network_id']),
+        ],
         supports_check_mode=True,
     )
 
@@ -100,6 +137,7 @@ def main():
     if module.check_mode:
         module.exit_json(changed=True, msg='Would %s baremetal %d' % (action, bid))
 
+    result = {}
     if action == 'reinstall':
         data = {
             'os_name': module.params['os'],
@@ -127,6 +165,21 @@ def main():
         result = api.put('/baremetal/%d/monitoring?enable=true' % bid)
     elif action == 'monitoring_disable':
         result = api.put('/baremetal/%d/monitoring?enable=false' % bid)
+    elif action == 'cancel_reinstall':
+        result = api.delete('/baremetal/%d/reinstall' % bid)
+    elif action in ('protect', 'unprotect'):
+        result = api.post('/baremetal/%d/protection' % bid, {'enabled': action == 'protect'})
+    elif action == 'move_project':
+        result = api.post('/baremetal/%d/move-project' % bid, {'project_id': module.params['project_id']})
+    elif action == 'add_ssh_keys':
+        result = api.post('/baremetal/%d/ssh-keys' % bid, module.params['ssh_key_ids'])
+    elif action == 'remove_ssh_key':
+        for key_id in module.params['ssh_key_ids']:
+            result = api.delete('/baremetal/%d/ssh-keys/%d' % (bid, key_id))
+    elif action == 'attach_network':
+        result = api.post('/baremetal/%d/network' % bid, {'network_id': module.params['network_id']})
+    elif action == 'detach_network':
+        result = api.delete('/baremetal/%d/network' % bid)
 
     module.exit_json(changed=True, result=result)
 

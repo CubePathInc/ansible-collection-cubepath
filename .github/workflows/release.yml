@@ -4,6 +4,7 @@ name: Release Collection
 on:
   push:
     tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
       - "[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
@@ -24,7 +25,7 @@ jobs:
 
       - name: Validate version matches tag
         run: |
-          TAG_VERSION="${GITHUB_REF_NAME}"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
           GALAXY_VERSION=$(grep '^version:' galaxy.yml | awk '{print $2}')
           if [ "$TAG_VERSION" != "$GALAXY_VERSION" ]; then
             echo "ERROR: Tag version ($TAG_VERSION) does not match galaxy.yml version ($GALAXY_VERSION)"

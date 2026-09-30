@@ -52,11 +52,12 @@ result:
 '''
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath import CubePathAPI
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
 
 
 def main():
-    argument_spec = dict(
+    argument_spec = cubepath_argument_spec()
+    argument_spec.update(
         action=dict(type='str', required=True, choices=['request_ssl', 'move_project']),
         zone_uuid=dict(type='str', required=True),
         project_id=dict(type='int'),

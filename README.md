@@ -62,6 +62,14 @@ All modules require a CubePath API token. You can provide it via:
 - `cubepathinc.cloud.cdn_rule` - Manage CDN edge rules
 - `cubepathinc.cloud.cdn_waf_rule` - Manage CDN WAF rules
 
+### Object Storage
+- `cubepathinc.cloud.object_storage_bucket` - Manage S3 compatible buckets
+- `cubepathinc.cloud.object_storage_access_key` - Manage S3 access keys (the secret is returned only on create)
+- `cubepathinc.cloud.object_storage_info` - List tiers, buckets, keys, bucket detail and monthly usage
+
+To serve a bucket publicly, add it to a CDN zone with `cubepathinc.cloud.cdn_origin` and
+`object_storage_bucket_uuid`. Buckets are never public on their own.
+
 ### Account
 - `cubepathinc.cloud.project` - Manage projects
 - `cubepathinc.cloud.project_info` - List projects

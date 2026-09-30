@@ -24,20 +24,22 @@ options:
         default: IPv4
         choices: [IPv4, IPv6]
     location:
-        description: Location. Required when I(state=acquired).
+        description: Location name (for example C(eu-bcn-1)). Required when I(state=acquired).
         type: str
     address:
-        description: IP address. Required when I(state=released).
+        description:
+            - Floating IP address.
+            - Required when I(state=released), I(state=assigned) or I(state=unassigned).
         type: str
     vps_id:
-        description: VPS ID for assignment.
+        description: VPS ID to assign the address to. Used when I(state=assigned).
         type: int
     baremetal_id:
-        description: Baremetal ID for assignment.
+        description: Baremetal ID to assign the address to. Used when I(state=assigned).
         type: int
-    floating_ip_id:
-        description: Floating IP ID for unassignment.
-        type: int
+notes:
+    - I(state=acquired) and I(state=released) are limited by the API to 3 per organization every 24 hours.
+    - The address returned by I(state=acquired) is in C(result.ip_address).
 '''
 
 EXAMPLES = r'''
@@ -47,18 +49,26 @@ EXAMPLES = r'''
     state: acquired
     ip_type: IPv4
     location: eu-bcn-1
+  register: fip
 
-- name: Assign to VPS
+- name: Assign it to a VPS
   cubepathinc.cloud.floating_ip:
     api_token: "{{ cubepath_token }}"
     state: assigned
+    address: "{{ fip.result.ip_address }}"
     vps_id: 123
+
+- name: Unassign it
+  cubepathinc.cloud.floating_ip:
+    api_token: "{{ cubepath_token }}"
+    state: unassigned
+    address: "{{ fip.result.ip_address }}"
 
 - name: Release floating IP
   cubepathinc.cloud.floating_ip:
     api_token: "{{ cubepath_token }}"
     state: released
-    address: "1.2.3.4"
+    address: "{{ fip.result.ip_address }}"
 '''
 
 RETURN = r'''
@@ -81,7 +91,6 @@ def main():
         address=dict(type='str'),
         vps_id=dict(type='int'),
         baremetal_id=dict(type='int'),
-        floating_ip_id=dict(type='int'),
     )
 
     module = AnsibleModule(
@@ -89,7 +98,9 @@ def main():
         required_if=[
             ('state', 'acquired', ['location']),
             ('state', 'released', ['address']),
-            ('state', 'unassigned', ['floating_ip_id']),
+            ('state', 'assigned', ['address']),
+            ('state', 'assigned', ['vps_id', 'baremetal_id'], True),
+            ('state', 'unassigned', ['address']),
         ],
         mutually_exclusive=[('vps_id', 'baremetal_id')],
         supports_check_mode=True,
@@ -97,35 +108,30 @@ def main():
 
     api = CubePathAPI(module)
     state = module.params['state']
+    address = module.params['address']
 
     if module.check_mode:
         module.exit_json(changed=True)
 
     if state == 'acquired':
-        data = {
-            'type': module.params['ip_type'],
-            'location': module.params['location'],
-        }
-        result = api.post('/floating_ips/acquire', data)
+        params = {'ip_type': module.params['ip_type'], 'location_name': module.params['location']}
+        result = api.post('/floating_ips/acquire', params=params)
         module.exit_json(changed=True, result=result)
 
     elif state == 'released':
-        result = api.post('/floating_ips/release', {'address': module.params['address']})
+        result = api.post('/floating_ips/release/%s' % address)
         module.exit_json(changed=True, result=result)
 
     elif state == 'assigned':
-        vps_id = module.params.get('vps_id')
-        baremetal_id = module.params.get('baremetal_id')
-        if not vps_id and not baremetal_id:
-            module.fail_json(msg='Either vps_id or baremetal_id required when state=assigned')
-        if vps_id:
-            result = api.post('/floating_ips/assign/vps/%d' % vps_id)
+        if module.params.get('vps_id'):
+            endpoint = '/floating_ips/assign/vps/%d' % module.params['vps_id']
         else:
-            result = api.post('/floating_ips/assign/baremetal/%d' % baremetal_id)
+            endpoint = '/floating_ips/assign/baremetal/%d' % module.params['baremetal_id']
+        result = api.post(endpoint, params={'address': address})
         module.exit_json(changed=True, result=result)
 
     elif state == 'unassigned':
-        result = api.post('/floating_ips/unassign/%d' % module.params['floating_ip_id'])
+        result = api.post('/floating_ips/unassign/%s' % address)
         module.exit_json(changed=True, result=result)
 
 

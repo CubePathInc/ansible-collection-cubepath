@@ -8,6 +8,7 @@ module: loadbalancer_info
 short_description: List load balancers on CubePath Cloud
 description:
     - Retrieve load balancers from CubePath Cloud.
+    - Optionally return the load balancer plans per location.
 version_added: "1.1.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -19,6 +20,13 @@ options:
     lb_uuid:
         description: Filter by UUID.
         type: str
+    gather:
+        description: Extra information to return.
+        type: list
+        elements: str
+        default: []
+        choices: [plans]
+        version_added: "1.5.0"
 '''
 
 EXAMPLES = r'''
@@ -34,6 +42,12 @@ loadbalancers:
     type: list
     returned: always
     elements: dict
+plans:
+    description: Load balancer plans grouped by location, with price and limits.
+    type: list
+    returned: when C(plans) is in I(gather)
+    elements: dict
+    version_added: "1.5.0"
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -45,6 +59,7 @@ def main():
     argument_spec.update(
         name=dict(type='str'),
         lb_uuid=dict(type='str'),
+        gather=dict(type='list', elements='str', default=[], choices=['plans']),
     )
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
@@ -61,7 +76,11 @@ def main():
     if lb_uuid:
         lbs = [lb for lb in lbs if lb.get('uuid') == lb_uuid]
 
-    module.exit_json(changed=False, loadbalancers=lbs)
+    result = {'changed': False, 'loadbalancers': lbs}
+    if 'plans' in module.params['gather']:
+        plans = api.get('/loadbalancer/plans')
+        result['plans'] = plans if isinstance(plans, list) else []
+    module.exit_json(**result)
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ import time
 from ansible.module_utils.urls import open_url
 from ansible.module_utils.basic import env_fallback
 from ansible.module_utils.six.moves.urllib.error import HTTPError, URLError
+from ansible.module_utils.six.moves.urllib.parse import quote, urlencode
 
 
 DEFAULT_API_URL = 'https://api.cubepath.com'
@@ -27,6 +28,17 @@ def cubepath_argument_spec():
     )
 
 
+def _query_value(value):
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    return value
+
+
+def path_quote(value):
+    """Quote a value for a URL path segment. A CIDR keeps its slash, which the API expects literally."""
+    return quote(str(value), safe='/:')
+
+
 class CubePathAPI:
     def __init__(self, module):
         self.module = module
@@ -41,17 +53,25 @@ class CubePathAPI:
             'X-Requested-With': 'XMLHttpRequest',
         }
 
-    def _request(self, method, endpoint, data=None, params=None):
+    def _request(self, method, endpoint, data=None, params=None, raw=False, busy_timeout=0):
+        """Call the API and return the decoded answer.
+
+        `busy_timeout` keeps retrying a 409 (the platform is busy with another operation of the
+        resource) for up to that many seconds, for operations the API documents as retryable.
+        """
         url = '%s%s' % (self.api_url, endpoint)
         if params:
-            query = '&'.join('%s=%s' % (k, v) for k, v in params.items() if v is not None)
+            query = urlencode([(k, _query_value(v)) for k, v in params.items() if v is not None])
             if query:
                 url = '%s?%s' % (url, query)
 
-        body = json.dumps(data) if data else None
+        # An empty list is a valid body (for example "detach every key"), only None means no body.
+        body = json.dumps(data) if data is not None else None
         retries = 3
+        attempt = 0
+        deadline = time.time() + busy_timeout
 
-        for attempt in range(retries):
+        while True:
             try:
                 response = open_url(
                     url,
@@ -64,14 +84,20 @@ class CubePathAPI:
                 status_code = response.getcode()
                 if status_code == 204:
                     return {}
-                raw = response.read()
-                if not raw:
+                content = response.read()
+                if raw:
+                    return content.decode('utf-8') if isinstance(content, bytes) else content
+                if not content:
                     return {}
-                return json.loads(raw)
+                return json.loads(content)
             except HTTPError as e:
                 status = e.code if hasattr(e, 'code') else 0
                 if status in (429, 502, 503, 504) and attempt < retries - 1:
                     time.sleep(2 ** attempt)
+                    attempt += 1
+                    continue
+                if status == 409 and time.time() < deadline:
+                    time.sleep(15)
                     continue
                 try:
                     error_body = json.loads(e.read())
@@ -82,6 +108,7 @@ class CubePathAPI:
             except URLError as e:
                 if attempt < retries - 1:
                     time.sleep(2 ** attempt)
+                    attempt += 1
                     continue
                 self.module.fail_json(msg='API connection error: %s' % str(e))
             except Exception as e:
@@ -90,11 +117,15 @@ class CubePathAPI:
     def get(self, endpoint, params=None):
         return self._request('GET', endpoint, params=params)
 
-    def post(self, endpoint, data=None, params=None):
-        return self._request('POST', endpoint, data, params=params)
+    def get_raw(self, endpoint, params=None):
+        """GET an endpoint that answers plain text (for example a kubeconfig YAML)."""
+        return self._request('GET', endpoint, params=params, raw=True)
 
-    def put(self, endpoint, data=None):
-        return self._request('PUT', endpoint, data)
+    def post(self, endpoint, data=None, params=None, busy_timeout=0):
+        return self._request('POST', endpoint, data, params=params, busy_timeout=busy_timeout)
+
+    def put(self, endpoint, data=None, params=None):
+        return self._request('PUT', endpoint, data, params=params)
 
     def patch(self, endpoint, data=None):
         return self._request('PATCH', endpoint, data)

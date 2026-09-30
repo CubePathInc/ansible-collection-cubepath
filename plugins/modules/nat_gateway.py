@@ -7,10 +7,12 @@ DOCUMENTATION = r'''
 module: nat_gateway
 short_description: Manage NAT gateways on CubePath Cloud
 description:
-    - Create, resize, or delete NAT gateways on CubePath Cloud.
+    - Create, update, resize, move or delete NAT gateways on CubePath Cloud.
     - For idempotency on create, the module lists existing gateways and matches by
       I(name) within the organisation; it will not recreate a gateway that already
       exists.
+    - On an existing gateway the module updates I(label) and I(protected), and moves it to I(project_id) when
+      it is in another project.
 version_added: "1.3.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -40,7 +42,9 @@ options:
             - Required when I(state=present).
         type: int
     project_id:
-        description: Project ID to associate the gateway with.
+        description:
+            - Project ID to associate the gateway with.
+            - An existing gateway in another project is moved to this one.
         type: int
     nat_gateway_uuid:
         description:
@@ -53,6 +57,12 @@ options:
               C(POST /nat-gateway/{uuid}/resize).
             - Has no effect when creating a new gateway.
         type: str
+    protected:
+        description:
+            - Deletion protection. A protected gateway cannot be deleted.
+            - With I(state=absent), C(false) disables protection before deleting.
+        type: bool
+        version_added: "1.5.0"
 '''
 
 EXAMPLES = r'''
@@ -103,6 +113,30 @@ def find_gateway(api, name):
     return None
 
 
+def update_existing(module, api, existing):
+    """Apply label, protection, plan and project changes to an existing gateway."""
+    p = module.params
+    uuid = existing.get('uuid')
+    calls = []
+    if p.get('label') is not None and p['label'] != existing.get('label'):
+        calls.append(('patch', '/nat-gateway/%s' % uuid, {'label': p['label']}))
+    if p.get('protected') is not None and p['protected'] != bool(existing.get('protected')):
+        calls.append(('post', '/nat-gateway/%s/protection' % uuid, {'enabled': p['protected']}))
+    # Only resize when the requested plan differs from the current one, otherwise the API rejects an
+    # unchanged resize (400 "already on plan") and the task would no longer be idempotent.
+    if p.get('resize_plan') and p['resize_plan'] != existing.get('plan_name'):
+        calls.append(('post', '/nat-gateway/%s/resize' % uuid, {'plan_name': p['resize_plan']}))
+    if p.get('project_id') is not None and p['project_id'] != existing.get('project_id'):
+        calls.append(('post', '/nat-gateway/%s/move-to-project' % uuid, {'project_id': p['project_id']}))
+    if not calls:
+        return dict(changed=False, nat_gateway=existing)
+    if module.check_mode:
+        return dict(changed=True, nat_gateway=existing)
+    for method, path, data in calls:
+        getattr(api, method)(path, data)
+    return dict(changed=True, nat_gateway=find_gateway(api, p['name']))
+
+
 def main():
     argument_spec = cubepath_argument_spec()
     argument_spec.update(
@@ -114,6 +148,7 @@ def main():
         project_id=dict(type='int'),
         nat_gateway_uuid=dict(type='str'),
         resize_plan=dict(type='str'),
+        protected=dict(type='bool'),
     )
 
     module = AnsibleModule(
@@ -130,17 +165,7 @@ def main():
         existing = find_gateway(api, name)
 
         if existing:
-            uuid = existing.get('uuid')
-            resize_plan = module.params.get('resize_plan')
-            # Only resize when the requested plan differs from the current one,
-            # otherwise the API rejects an unchanged resize (400 "already on plan")
-            # and the task would no longer be idempotent.
-            if resize_plan and resize_plan != existing.get('plan_name'):
-                if module.check_mode:
-                    module.exit_json(changed=True)
-                result = api.post('/nat-gateway/%s/resize' % uuid, {'plan_name': resize_plan})
-                module.exit_json(changed=True, nat_gateway=result)
-            module.exit_json(changed=False, nat_gateway=existing)
+            module.exit_json(**update_existing(module, api, existing))
 
         if module.check_mode:
             module.exit_json(changed=True)
@@ -156,18 +181,23 @@ def main():
             data['project_id'] = module.params['project_id']
 
         result = api.post('/nat-gateway/', data)
+        if module.params.get('protected') and result.get('uuid'):
+            api.post('/nat-gateway/%s/protection' % result['uuid'], {'enabled': True})
         module.exit_json(changed=True, nat_gateway=result)
 
     elif state == 'absent':
         uuid = module.params.get('nat_gateway_uuid')
-        if not uuid and name:
+        existing = None
+        if name:
             existing = find_gateway(api, name)
-            if existing:
-                uuid = existing.get('uuid')
+        if not uuid and existing:
+            uuid = existing.get('uuid')
         if not uuid:
             module.exit_json(changed=False)
         if module.check_mode:
             module.exit_json(changed=True)
+        if existing and existing.get('uuid') == uuid and module.params.get('protected') is False and existing.get('protected'):
+            api.post('/nat-gateway/%s/protection' % uuid, {'enabled': False})
         api.delete('/nat-gateway/%s' % uuid)
         module.exit_json(changed=True)
 

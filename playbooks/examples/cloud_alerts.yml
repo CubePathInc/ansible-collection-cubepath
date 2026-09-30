@@ -1,0 +1,50 @@
+---
+- name: Alert on high CPU and protect the web server
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    cubepath_token: "{{ lookup('env', 'CUBEPATH_API_TOKEN') }}"
+    slack_webhook_url: "{{ lookup('env', 'SLACK_WEBHOOK_URL') }}"
+  tasks:
+    - name: Slack channel for alerts
+      cubepathinc.cloud.cloud_alert_channel:
+        api_token: "{{ cubepath_token }}"
+        name: ops-slack
+        type: slack
+        webhook_url: "{{ slack_webhook_url }}"
+        state: present
+
+    - name: Alert when web-01 stays above 90% CPU for 10 minutes
+      cubepathinc.cloud.cloud_alert:
+        api_token: "{{ cubepath_token }}"
+        name: web-01 cpu
+        project_id: 1
+        target_type: vps
+        target_id: "123"
+        metric: cpu
+        operator: gt
+        threshold: 90
+        duration_seconds: 600
+        channels:
+          - ops-slack
+        state: present
+
+    - name: Web firewall group
+      cubepathinc.cloud.firewall_group:
+        api_token: "{{ cubepath_token }}"
+        name: web
+        project_id: 1
+        rules:
+          - direction: in
+            protocol: tcp
+            port: "80,443"
+            comment: HTTP and HTTPS
+        state: present
+
+    - name: Apply it to web-01
+      cubepathinc.cloud.vps_firewall_groups:
+        api_token: "{{ cubepath_token }}"
+        vps_id: 123
+        firewall_groups:
+          - web

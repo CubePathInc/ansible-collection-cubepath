@@ -99,5 +99,5 @@ class CubePathAPI:
     def patch(self, endpoint, data=None):
         return self._request('PATCH', endpoint, data)
 
-    def delete(self, endpoint, data=None):
-        return self._request('DELETE', endpoint, data)
+    def delete(self, endpoint, data=None, params=None):
+        return self._request('DELETE', endpoint, data, params=params)

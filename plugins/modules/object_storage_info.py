@@ -33,6 +33,13 @@ options:
     period:
         description: Month of the usage report (C(YYYY-MM)). Defaults to the current month.
         type: str
+    tags:
+        description:
+            - Only buckets (and their usage) with every one of these tags.
+            - A key with a value matches that exact value; a key with an empty (null) value
+              matches any value. At most 10.
+        type: dict
+        version_added: "1.6.0"
 '''
 
 EXAMPLES = r'''
@@ -47,6 +54,15 @@ EXAMPLES = r'''
     gather: [usage]
     project_id: 12
   register: usage
+
+- name: Production buckets of the data team
+  cubepathinc.cloud.object_storage_info:
+    api_token: "{{ cubepath_token }}"
+    gather: [buckets]
+    tags:
+      env: prod
+      team:
+  register: prod
 
 - name: One bucket in detail
   cubepathinc.cloud.object_storage_info:
@@ -63,7 +79,7 @@ tiers:
     elements: dict
     returned: when C(tiers) is in I(gather)
 buckets:
-    description: Buckets of the organization.
+    description: Buckets of the organization, each with its C(tags).
     type: list
     elements: dict
     returned: when C(buckets) is in I(gather)
@@ -84,6 +100,7 @@ bucket:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_object_storage import tag_filter
 
 
 def main():
@@ -95,32 +112,37 @@ def main():
         project_id=dict(type='int'),
         tier=dict(type='str'),
         period=dict(type='str'),
+        tags=dict(type='dict'),
     )
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
 
     api = CubePathAPI(module)
     gather = module.params['gather']
     filters = {'project_id': module.params.get('project_id'), 'tier': module.params.get('tier')}
+    bucket_filters = dict(filters, tag=tag_filter(module.params.get('tags')))
     result = {'changed': False}
 
     if 'tiers' in gather:
         tiers = api.get('/object-storage/tiers')
         result['tiers'] = tiers if isinstance(tiers, list) else []
     buckets = None
-    if 'buckets' in gather or module.params.get('bucket'):
-        buckets = api.get('/object-storage/buckets', params=filters)
+    if 'buckets' in gather:
+        buckets = api.get('/object-storage/buckets', params=bucket_filters)
         buckets = buckets if isinstance(buckets, list) else []
-        if 'buckets' in gather:
-            result['buckets'] = buckets
+        result['buckets'] = buckets
     if 'access_keys' in gather:
         keys = api.get('/object-storage/keys', params=filters)
         result['access_keys'] = keys if isinstance(keys, list) else []
     if 'usage' in gather:
-        params = dict(filters, period=module.params.get('period'))
+        params = dict(bucket_filters, period=module.params.get('period'))
         result['usage'] = api.get('/object-storage/usage', params=params)
 
     ref = module.params.get('bucket')
     if ref:
+        # The lookup of a single bucket ignores the tag filter.
+        if buckets is None or module.params.get('tags'):
+            buckets = api.get('/object-storage/buckets', params=filters)
+            buckets = buckets if isinstance(buckets, list) else []
         match = next((b for b in buckets if ref in (b.get('name'), b.get('uuid'))), None)
         if match is None:
             module.fail_json(msg='Bucket %s not found' % ref)

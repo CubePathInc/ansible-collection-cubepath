@@ -5,6 +5,23 @@ __metaclass__ = type
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import wait_for  # noqa: F401 pylint: disable=unused-import
 
 
+def tag_filter(tags):
+    """Turn a tags dict into the API's repeated tag filter: key=value, or just key for a None value."""
+    if not tags:
+        return None
+    return ['%s' % k if v is None else '%s=%s' % (k, v) for k, v in sorted(tags.items())]
+
+
+def desired_tags(current, tags, purge):
+    """The tag set to send: tags alone with purge, otherwise merged over the current ones."""
+    wanted = dict((str(k), '' if v is None else str(v)) for k, v in (tags or {}).items())
+    if purge:
+        return wanted
+    merged = dict(current or {})
+    merged.update(wanted)
+    return merged
+
+
 def list_buckets(api, project_id=None):
     params = {'project_id': project_id} if project_id is not None else None
     result = api.get('/object-storage/buckets', params=params)

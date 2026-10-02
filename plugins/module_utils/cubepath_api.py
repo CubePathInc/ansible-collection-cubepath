@@ -61,7 +61,14 @@ class CubePathAPI:
         """
         url = '%s%s' % (self.api_url, endpoint)
         if params:
-            query = urlencode([(k, _query_value(v)) for k, v in params.items() if v is not None])
+            # A list value is sent as a repeated parameter (tag=a&tag=b).
+            pairs = []
+            for k, v in params.items():
+                if isinstance(v, (list, tuple)):
+                    pairs.extend((k, _query_value(item)) for item in v if item is not None)
+                elif v is not None:
+                    pairs.append((k, _query_value(v)))
+            query = urlencode(pairs)
             if query:
                 url = '%s?%s' % (url, query)
 

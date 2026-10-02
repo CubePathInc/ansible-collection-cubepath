@@ -12,8 +12,27 @@
         name: my-assets
         tier: infrequent_access
         versioning: enabled
+        tags:
+          env: prod
+          team: web
         state: present
       register: bucket
+
+    - name: Add an owner tag and keep the others
+      cubepathinc.cloud.object_storage_bucket:
+        api_token: "{{ cubepath_token }}"
+        name: my-assets
+        tags:
+          owner: platform
+        purge_tags: false
+
+    - name: List the production buckets
+      cubepathinc.cloud.object_storage_info:
+        api_token: "{{ cubepath_token }}"
+        gather: [buckets]
+        tags:
+          env: prod
+      register: prod_buckets
 
     - name: Create an access key for the application
       cubepathinc.cloud.object_storage_access_key:
@@ -41,3 +60,8 @@
         name: assets-bucket
         object_storage_bucket_uuid: "{{ bucket.bucket.uuid }}"
         state: present
+
+    # Bucket tags are not visible through S3. Object tags are standard S3 object
+    # tagging, for example:
+    #   aws s3api put-object-tagging --bucket my-assets --key logo.png \
+    #     --tagging 'TagSet=[{Key=class,Value=static}]' --endpoint-url <endpoint>

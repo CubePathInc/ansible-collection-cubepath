@@ -49,6 +49,25 @@ options:
     protected:
         description: Deletion protection. A protected bucket cannot be deleted.
         type: bool
+    tags:
+        description:
+            - Bucket tags as a dictionary of key and value, to organize and filter buckets.
+            - "At most 50 tags; keys 1 to 128 and values 0 to 256 characters of letters, numbers,
+              spaces and C(_ . : / = + - @). Keys cannot contain C(=), start or end with a space,
+              or start with C(aws:), C(cp:) or C(cubepath:)."
+            - When omitted the tags are left unchanged.
+            - Bucket tags are not visible through S3 bucket tagging calls, which answer 403.
+              Object tags are standard S3 object tagging.
+        type: dict
+        version_added: "1.6.0"
+    purge_tags:
+        description:
+            - With C(true), tags not listed in I(tags) are removed. With C(false), I(tags) is
+              merged with the current tags.
+            - Has no effect when I(tags) is omitted.
+        type: bool
+        default: true
+        version_added: "1.6.0"
     force:
         description:
             - With I(state=absent), delete the bucket even if it still has objects (they are
@@ -74,7 +93,24 @@ EXAMPLES = r'''
     project_id: 12
     versioning: enabled
     protected: true
+    tags:
+      env: prod
+      team: data
   register: bucket
+
+- name: Add a tag and keep the others
+  cubepathinc.cloud.object_storage_bucket:
+    api_token: "{{ cubepath_token }}"
+    name: my-backups
+    tags:
+      owner: backups-team
+    purge_tags: false
+
+- name: Remove every tag
+  cubepathinc.cloud.object_storage_bucket:
+    api_token: "{{ cubepath_token }}"
+    name: my-backups
+    tags: {}
 
 - name: Delete a bucket and everything in it
   cubepathinc.cloud.object_storage_bucket:
@@ -87,14 +123,14 @@ EXAMPLES = r'''
 
 RETURN = r'''
 bucket:
-    description: Bucket details (endpoint, region, status, versioning, size...).
+    description: Bucket details (endpoint, region, status, versioning, tags, size...).
     type: dict
     returned: when I(state=present)
 '''
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
-from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_object_storage import find_bucket, wait_for
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_object_storage import desired_tags, find_bucket, wait_for
 
 
 def main():
@@ -106,6 +142,8 @@ def main():
         project_id=dict(type='int'),
         versioning=dict(type='str', choices=['enabled', 'suspended', 'off']),
         protected=dict(type='bool'),
+        tags=dict(type='dict'),
+        purge_tags=dict(type='bool', default=True),
         force=dict(type='bool', default=False),
         wait=dict(type='bool', default=True),
         wait_timeout=dict(type='int', default=600),
@@ -147,6 +185,8 @@ def main():
         data = {'name': name, 'tier': module.params['tier'], 'versioning': module.params.get('versioning') == 'enabled'}
         if module.params.get('project_id') is not None:
             data['project_id'] = module.params['project_id']
+        if module.params.get('tags'):
+            data['tags'] = desired_tags(None, module.params['tags'], True)
         api.post('/object-storage/buckets', data)
         changed = True
         bucket = fetch()
@@ -161,6 +201,11 @@ def main():
     protected = module.params.get('protected')
     if protected is not None and protected != bool(bucket.get('protected')):
         update['protected'] = protected
+    if module.params.get('tags') is not None:
+        current = bucket.get('tags') or {}
+        wanted = desired_tags(current, module.params['tags'], module.params['purge_tags'])
+        if wanted != current:
+            update['tags'] = wanted
     if update:
         if module.check_mode:
             module.exit_json(changed=True, bucket=bucket)

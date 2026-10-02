@@ -22,6 +22,17 @@ def desired_tags(current, tags, purge):
     return merged
 
 
+def lock_retention(rule):
+    """A default retention as the API takes it ({mode, days} or {mode, years}), or None for no rule."""
+    if not rule or not rule.get('mode'):
+        return None
+    if rule.get('days') is not None:
+        return {'mode': rule['mode'], 'days': int(rule['days'])}
+    if rule.get('years') is not None:
+        return {'mode': rule['mode'], 'years': int(rule['years'])}
+    return None
+
+
 def list_buckets(api, project_id=None):
     params = {'project_id': project_id} if project_id is not None else None
     result = api.get('/object-storage/buckets', params=params)

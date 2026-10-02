@@ -91,8 +91,8 @@ All modules require a CubePath API token. You can provide it via:
 - `cubepathinc.cloud.cdn_waf_rule` - Manage CDN WAF rules
 
 ### Object Storage
-- `cubepathinc.cloud.object_storage_bucket` - Manage S3 compatible buckets and their tags (`tags`, `purge_tags`)
-- `cubepathinc.cloud.object_storage_access_key` - Manage S3 access keys (the secret is returned only on create)
+- `cubepathinc.cloud.object_storage_bucket` - Manage S3 compatible buckets, their tags (`tags`, `purge_tags`) and Object Lock (`object_lock`, `object_lock_default`, `accept_object_lock_terms`; `bypass_governance` on a forced delete)
+- `cubepathinc.cloud.object_storage_access_key` - Manage S3 access keys (the secret is returned only on create; `bypass_governance` for keys that may delete governance locked versions)
 - `cubepathinc.cloud.object_storage_info` - List tiers, buckets (filter by `tags`), keys, bucket detail and monthly usage
 - `cubepathinc.cloud.object_storage_bucket_lifecycle` - Set or remove every lifecycle rule of a bucket (objects are deleted permanently, within 48 hours of their due date)
 

@@ -50,6 +50,15 @@ options:
     expires_at:
         description: Expiry time in UTC (ISO 8601). The key stops working at that time.
         type: str
+    bypass_governance:
+        description:
+            - Let the key delete or overwrite object versions under C(governance) retention in
+              buckets with Object Lock, by sending the C(x-amz-bypass-governance-retention) header.
+              C(compliance) versions can never be deleted before their date.
+            - Only for C(read_write) keys, and only when the key is created.
+        type: bool
+        default: false
+        version_added: "1.6.0"
     wait:
         description: Wait until the key is usable (C(active)), or revoked when I(state=absent).
         type: bool
@@ -73,6 +82,16 @@ EXAMPLES = r'''
   register: key
   no_log: true
 
+- name: Create a key that can remove governance locked versions
+  cubepathinc.cloud.object_storage_access_key:
+    api_token: "{{ cubepath_token }}"
+    name: backup-admin
+    tier: infrequent_access
+    permission: read_write
+    bypass_governance: true
+  register: admin_key
+  no_log: true
+
 - name: Revoke a key
   cubepathinc.cloud.object_storage_access_key:
     api_token: "{{ cubepath_token }}"
@@ -84,7 +103,8 @@ EXAMPLES = r'''
 RETURN = r'''
 access_key:
     description:
-        - Key details (access key ID, permission, buckets, endpoint, region, status).
+        - Key details (access key ID, permission, buckets, endpoint, region, status,
+          bypass_governance).
         - Includes C(secret_access_key) only when this task created the key.
     type: dict
     returned: when I(state=present)
@@ -117,6 +137,7 @@ def main():
         permission=dict(type='str', default='read_write', choices=['read_write', 'read_only']),
         buckets=dict(type='list', elements='str'),
         expires_at=dict(type='str'),
+        bypass_governance=dict(type='bool', default=False),
         wait=dict(type='bool', default=True),
         wait_timeout=dict(type='int', default=300),
     )
@@ -150,6 +171,8 @@ def main():
 
     if not tier:
         module.fail_json(msg='tier is required to create an access key')
+    if module.params['bypass_governance'] and module.params['permission'] != 'read_write':
+        module.fail_json(msg='bypass_governance can only be given to read_write keys')
     if module.check_mode:
         module.exit_json(changed=True)
 
@@ -160,6 +183,8 @@ def main():
         data['bucket_uuids'] = resolve_bucket_uuids(module, api, module.params['buckets'])
     if module.params.get('expires_at'):
         data['expires_at'] = module.params['expires_at']
+    if module.params['bypass_governance']:
+        data['bypass_governance'] = True
     created = api.post('/object-storage/keys', data)
 
     if module.params['wait'] and created.get('uuid'):

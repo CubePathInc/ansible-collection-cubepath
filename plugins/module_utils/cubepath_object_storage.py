@@ -61,3 +61,47 @@ def find_key(api, name, project_id=None, tier=None):
             continue
         return key
     return None
+
+
+def find_bucket_ref(api, ref):
+    """A bucket of the organization by name or UUID."""
+    buckets = list_buckets(api)
+    for bucket in buckets:
+        if bucket.get('name') == ref:
+            return bucket
+    for bucket in buckets:
+        if bucket.get('uuid') == ref:
+            return bucket
+    return None
+
+
+def list_replications(api, direction='all', bucket_uuid=None):
+    params = {'direction': direction, 'bucket_uuid': bucket_uuid}
+    result = api.get('/object-storage/replications', params=params)
+    return result if isinstance(result, list) else []
+
+
+def find_outgoing_replication(api, source_bucket_uuid):
+    """The replication of a source bucket (a bucket replicates to one destination at most)."""
+    for replication in list_replications(api, 'outgoing', source_bucket_uuid):
+        if (replication.get('source') or {}).get('bucket_uuid') == source_bucket_uuid:
+            return replication
+    return None
+
+
+def replication_tags(tags):
+    """Tags as the API takes them, a list of key/value sorted by key, from a dict or a list."""
+    if not tags:
+        return []
+    if isinstance(tags, dict):
+        tags = [{'key': k, 'value': v} for k, v in tags.items()]
+    return sorted(({'key': str(t.get('key')), 'value': '' if t.get('value') is None else str(t.get('value'))} for t in tags),
+                  key=lambda t: t['key'])
+
+
+def normalize_endpoint(endpoint):
+    """An external endpoint as the API stores it: lowercase host, without :443."""
+    endpoint = (endpoint or '').strip().lower()
+    if endpoint.endswith(':443'):
+        endpoint = endpoint[:-4]
+    return endpoint

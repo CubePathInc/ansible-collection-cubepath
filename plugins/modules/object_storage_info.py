@@ -7,8 +7,8 @@ DOCUMENTATION = r'''
 module: object_storage_info
 short_description: Get Object Storage information from CubePath Cloud
 description:
-    - List storage tiers, buckets and access keys, get one bucket in detail, or read the
-      month's usage and cost.
+    - List storage tiers, buckets, access keys and replications, get one bucket in detail (with
+      its replication grants), or read the month's usage and cost.
     - Access key secrets are never returned.
 version_added: "1.4.0"
 author: CubePath (@cubepath)
@@ -20,10 +20,21 @@ options:
         type: list
         elements: str
         default: [tiers, buckets, access_keys]
-        choices: [tiers, buckets, access_keys, usage]
+        choices: [tiers, buckets, access_keys, usage, replications, replication_grants]
     bucket:
-        description: Name or UUID of a bucket to return in detail as RV(bucket).
+        description:
+            - Name or UUID of a bucket to return in detail as RV(bucket).
+            - Also limits RV(replications) to the ones of this bucket, and is required for
+              C(replication_grants).
         type: str
+    direction:
+        description:
+            - Which replications to return, C(outgoing) (from buckets of the organization),
+              C(incoming) (into them) or C(all).
+        type: str
+        default: all
+        choices: [outgoing, incoming, all]
+        version_added: "1.7.0"
     project_id:
         description: Only buckets, keys and usage of this project.
         type: int
@@ -64,6 +75,13 @@ EXAMPLES = r'''
       team:
   register: prod
 
+- name: Replications of a bucket and its grants
+  cubepathinc.cloud.object_storage_info:
+    api_token: "{{ cubepath_token }}"
+    gather: [replications, replication_grants]
+    bucket: photos
+  register: replication
+
 - name: One bucket in detail
   cubepathinc.cloud.object_storage_info:
     api_token: "{{ cubepath_token }}"
@@ -88,6 +106,20 @@ access_keys:
     type: list
     elements: dict
     returned: when C(access_keys) is in I(gather)
+replications:
+    description:
+        - Replications of the organization, newest first, each with its C(direction), source,
+          destination (external access key IDs masked), rules, health and backfill.
+    type: list
+    elements: dict
+    returned: when C(replications) is in I(gather)
+    version_added: "1.7.0"
+replication_grants:
+    description: Replication grants of the bucket given in I(bucket), without their tokens.
+    type: list
+    elements: dict
+    returned: when C(replication_grants) is in I(gather)
+    version_added: "1.7.0"
 usage:
     description: Usage and cost of the month per tier and per bucket.
     type: dict
@@ -107,8 +139,9 @@ def main():
     argument_spec = cubepath_argument_spec()
     argument_spec.update(
         gather=dict(type='list', elements='str', default=['tiers', 'buckets', 'access_keys'],
-                    choices=['tiers', 'buckets', 'access_keys', 'usage']),
+                    choices=['tiers', 'buckets', 'access_keys', 'usage', 'replications', 'replication_grants']),
         bucket=dict(type='str'),
+        direction=dict(type='str', default='all', choices=['outgoing', 'incoming', 'all']),
         project_id=dict(type='int'),
         tier=dict(type='str'),
         period=dict(type='str'),
@@ -138,6 +171,8 @@ def main():
         result['usage'] = api.get('/object-storage/usage', params=params)
 
     ref = module.params.get('bucket')
+    if 'replication_grants' in gather and not ref:
+        module.fail_json(msg='bucket is required to gather replication_grants')
     if ref:
         # The lookup of a single bucket ignores the tag filter.
         if buckets is None or module.params.get('tags'):
@@ -147,6 +182,16 @@ def main():
         if match is None:
             module.fail_json(msg='Bucket %s not found' % ref)
         result['bucket'] = api.get('/object-storage/buckets/%s' % match['uuid'])
+        if 'replication_grants' in gather:
+            grants = api.get('/object-storage/buckets/%s/replication-grants' % match['uuid'])
+            result['replication_grants'] = grants if isinstance(grants, list) else []
+    else:
+        match = None
+
+    if 'replications' in gather:
+        params = {'direction': module.params['direction'], 'bucket_uuid': match['uuid'] if match else None}
+        replications = api.get('/object-storage/replications', params=params)
+        result['replications'] = replications if isinstance(replications, list) else []
 
     module.exit_json(**result)
 

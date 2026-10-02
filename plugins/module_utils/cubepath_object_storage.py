@@ -61,3 +61,53 @@ def find_key(api, name, project_id=None, tier=None):
             continue
         return key
     return None
+
+
+EVENT_TYPES = ('object.created', 'object.removed', 'object.tagging')
+
+
+def normalize_events(events):
+    """Event types as the API takes them, sorted and without repeats: "created" or
+    "object.created" both give object.created. Unknown names raise ValueError."""
+    out = set()
+    for event in events or []:
+        name = str(event).strip().lower()
+        full = name if name.startswith('object.') else 'object.' + name
+        if full not in EVENT_TYPES:
+            raise ValueError("Unknown event type '%s': use created, removed or tagging" % event)
+        out.add(full)
+    return sorted(out)
+
+
+def list_event_destinations(api):
+    result = api.get('/object-storage/event-destinations')
+    return result if isinstance(result, list) else []
+
+
+def find_event_destination(api, ref):
+    """A destination by name, or by UUID when no destination has that name."""
+    destinations = list_event_destinations(api)
+    for dest in destinations:
+        if dest.get('name') == ref:
+            return dest
+    for dest in destinations:
+        if dest.get('uuid') == ref:
+            return dest
+    return None
+
+
+def find_bucket_ref(api, ref):
+    """A bucket by name, or by UUID when no bucket has that name."""
+    buckets = list_buckets(api)
+    for bucket in buckets:
+        if bucket.get('name') == ref:
+            return bucket
+    for bucket in buckets:
+        if bucket.get('uuid') == ref:
+            return bucket
+    return None
+
+
+def list_event_rules(api, bucket_uuid):
+    result = api.get('/object-storage/buckets/%s/event-rules' % bucket_uuid)
+    return result if isinstance(result, list) else []

@@ -95,6 +95,8 @@ All modules require a CubePath API token. You can provide it via:
 - `cubepathinc.cloud.object_storage_access_key` - Manage S3 access keys (the secret is returned only on create; `bypass_governance` for keys that may delete governance locked versions)
 - `cubepathinc.cloud.object_storage_info` - List tiers, buckets (filter by `tags`), keys, bucket detail and monthly usage
 - `cubepathinc.cloud.object_storage_bucket_lifecycle` - Set or remove every lifecycle rule of a bucket (objects are deleted permanently, within 48 hours of their due date)
+- `cubepathinc.cloud.object_storage_event_destination` - Manage event notification destinations: signed webhooks or Slack/Discord channels (the signing secret is returned only on create or with `rotate_secret`)
+- `cubepathinc.cloud.object_storage_event_rule` - Send a bucket's object events (created, removed, tagging) matching a prefix and suffix to a destination
 
 To serve a bucket publicly, add it to a CDN zone with `cubepathinc.cloud.cdn_origin` and
 `object_storage_bucket_uuid`. Buckets are never public on their own.

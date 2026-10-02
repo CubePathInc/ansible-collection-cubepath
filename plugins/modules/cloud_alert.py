@@ -7,12 +7,16 @@ DOCUMENTATION = r'''
 module: cloud_alert
 short_description: Manage Cloud Alerts on CubePath Cloud
 description:
-    - Create, update or delete an alert that watches a metric of a VPS, a baremetal server or an
-      availability group and notifies channels when it crosses a threshold.
+    - Create, update or delete an alert that watches a metric of a VPS, a baremetal server, an
+      availability group, an Object Storage bucket or the Object Storage usage of the organization, and
+      notifies channels when it crosses a threshold.
     - The module finds an existing alert by I(name), which is unique in the organization, and updates the
       fields that differ.
     - Channels are managed with M(cubepathinc.cloud.cloud_alert_channel).
-    - An organization can have up to 20 alerts.
+    - Monthly metrics (C(storage_cost_month) and C(storage_egress_gb_month)) notify once per month as soon
+      as the threshold is crossed and reset on the 1st (UTC). They only accept the C(gt) and C(gte)
+      operators and ignore I(duration_seconds) and I(cooldown_seconds).
+    - An organization can have up to 50 alerts.
 version_added: "1.5.0"
 author: CubePath (@cubepath)
 extends_documentation_fragment:
@@ -34,31 +38,53 @@ options:
         description: Free-form description.
         type: str
     target_type:
-        description: Kind of resource watched. Required to create the alert.
+        description:
+            - Kind of resource watched. Required to create the alert.
+            - C(organization) watches the Object Storage usage of the whole organization.
         type: str
-        choices: [vps, baremetal, availability_group]
+        choices: [vps, baremetal, availability_group, object_storage_bucket, organization]
     target_id:
         description:
-            - ID of the VPS or baremetal server, or UUID of the availability group. Required to create the alert.
+            - ID of the VPS or baremetal server, UUID of the availability group or of the bucket, or the
+              organization ID when I(target_type=organization). Required to create the alert.
+            - A bucket alert must be created in the bucket's project. An organization alert still needs a
+              I(project_id); it is listed under that project and deleted with it.
         type: str
     metric:
         description:
             - Metric watched. Required to create the alert.
-            - Baremetal servers only support C(network_in) and C(network_out).
+            - Servers and availability groups use C(cpu), C(ram), C(disk), C(network_in) and C(network_out).
+              Baremetal servers only support C(network_in) and C(network_out).
+            - Buckets use C(storage_size_gb) (GiB), C(storage_egress_gb_month) (GiB this month, before the free
+              tier), C(storage_error_rate_5xx) and C(storage_error_rate_403) (percent of requests over the last
+              5 minutes, needs at least 20 requests).
+            - Organizations use C(storage_cost_month) (USD billed so far this month, about an hour behind
+              billing) and C(storage_egress_gb_month).
         type: str
-        choices: [cpu, ram, disk, network_in, network_out]
+        choices: [cpu, ram, disk, network_in, network_out, storage_size_gb, storage_egress_gb_month,
+                  storage_error_rate_5xx, storage_error_rate_403, storage_cost_month]
     operator:
-        description: Comparison with I(threshold). Required to create the alert.
+        description:
+            - Comparison with I(threshold). Required to create the alert.
+            - Monthly metrics only accept C(gt) and C(gte).
         type: str
         choices: [gt, gte, lt, lte, eq]
     threshold:
-        description: Threshold value (0 to 1000000). Required to create the alert.
+        description:
+            - Threshold value. Required to create the alert.
+            - 0 to 1000000 for server metrics (percent for C(cpu), C(ram) and C(disk)).
+            - Object Storage metrics need a value above 0 and at most 1048576 for C(storage_size_gb), 100 for
+              the error rates and 1000000 for C(storage_egress_gb_month) and C(storage_cost_month).
         type: float
     duration_seconds:
-        description: Seconds the condition must hold before the alert fires (60 to 3600, 300 by default).
+        description:
+            - Seconds the condition must hold before the alert fires (60 to 3600, 300 by default).
+            - Ignored by monthly metrics; leave it unset for them.
         type: int
     cooldown_seconds:
-        description: Minimum seconds between two notifications (60 to 86400, 600 by default).
+        description:
+            - Minimum seconds between two notifications (60 to 86400, 600 by default).
+            - Ignored by monthly metrics.
         type: int
     channels:
         description:
@@ -90,11 +116,35 @@ EXAMPLES = r'''
     api_token: "{{ cubepath_token }}"
     name: web-01 cpu
     enabled: false
+
+- name: Monthly Object Storage budget, notified once when 50 USD have been billed this month
+  cubepathinc.cloud.cloud_alert:
+    api_token: "{{ cubepath_token }}"
+    name: object storage budget
+    project_id: 12
+    target_type: organization
+    target_id: "{{ organization_id | string }}"
+    metric: storage_cost_month
+    operator: gte
+    threshold: 50
+    channels: [ops-email]
+
+- name: Alert when a bucket grows above 500 GiB
+  cubepathinc.cloud.cloud_alert:
+    api_token: "{{ cubepath_token }}"
+    name: assets bucket size
+    project_id: 12
+    target_type: object_storage_bucket
+    target_id: 6f1c1a8e-0d6b-4f0e-9a43-2b7f3c1d9e10
+    metric: storage_size_gb
+    operator: gt
+    threshold: 500
+    channels: [ops-slack]
 '''
 
 RETURN = r'''
 alert:
-    description: Alert details, with its C(actions).
+    description: Alert details, with its C(actions) and C(target_name) (the bucket name, or null).
     type: dict
     returned: when I(state=present)
 '''
@@ -132,9 +182,12 @@ def main():
         name=dict(type='str', required=True),
         project_id=dict(type='int'),
         description=dict(type='str'),
-        target_type=dict(type='str', choices=['vps', 'baremetal', 'availability_group']),
+        target_type=dict(type='str', choices=['vps', 'baremetal', 'availability_group', 'object_storage_bucket',
+                                              'organization']),
         target_id=dict(type='str'),
-        metric=dict(type='str', choices=['cpu', 'ram', 'disk', 'network_in', 'network_out']),
+        metric=dict(type='str', choices=['cpu', 'ram', 'disk', 'network_in', 'network_out', 'storage_size_gb',
+                                         'storage_egress_gb_month', 'storage_error_rate_5xx',
+                                         'storage_error_rate_403', 'storage_cost_month']),
         operator=dict(type='str', choices=['gt', 'gte', 'lt', 'lte', 'eq']),
         threshold=dict(type='float'),
         duration_seconds=dict(type='int'),

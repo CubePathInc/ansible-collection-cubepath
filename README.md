@@ -107,7 +107,7 @@ To serve a bucket publicly, add it to a CDN zone with `cubepathinc.cloud.cdn_ori
 - `cubepathinc.cloud.ddos_attack_info` - List DDoS attacks, with details and traffic graph of one
 
 ### Cloud Alerts
-- `cubepathinc.cloud.cloud_alert` - Manage metric alerts on VPS, baremetal servers and availability groups
+- `cubepathinc.cloud.cloud_alert` - Manage metric alerts on VPS, baremetal servers, availability groups, Object Storage buckets and the organization's Object Storage usage
 - `cubepathinc.cloud.cloud_alert_channel` - Manage Slack, Discord and email notification channels
 - `cubepathinc.cloud.cloud_alert_info` - List alerts and channels, with the history of one alert
 

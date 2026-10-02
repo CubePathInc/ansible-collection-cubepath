@@ -14,8 +14,6 @@ description:
       C(active), or gone when I(state=absent).
     - Object Lock (WORM) can only be turned on when the bucket is created, with I(object_lock).
       Its default retention I(object_lock_default) can be changed later.
-    - Encryption at rest (AES-256) is on unless the bucket is created with I(encryption=false).
-      It can be enabled later and never turned off.
     - Buckets are private. To serve one publicly, add it as an origin of a CDN zone with
       M(cubepathinc.cloud.cdn_origin) and I(object_storage_bucket_uuid).
 version_added: "1.4.0"
@@ -114,15 +112,6 @@ options:
         type: bool
         default: false
         version_added: "1.6.0"
-    encryption:
-        description:
-            - Encryption at rest (AES-256) of the bucket's objects. When creating, omitted means on.
-            - C(true) on a bucket created without it enables it; the objects already stored are
-              encrypted in the background (in a versioned bucket only the current versions).
-            - Encryption at rest cannot be turned off once enabled, so C(false) on an encrypted
-              bucket fails.
-        type: bool
-        version_added: "1.7.0"
     force:
         description:
             - With I(state=absent), delete the bucket even if it still has objects (they are
@@ -194,19 +183,6 @@ EXAMPLES = r'''
     name: veeam-immutable
     object_lock_default: {}
 
-- name: Create a bucket without encryption at rest
-  cubepathinc.cloud.object_storage_bucket:
-    api_token: "{{ cubepath_token }}"
-    name: scratch-data
-    tier: infrequent_access
-    encryption: false
-
-- name: Enable encryption at rest later (cannot be undone)
-  cubepathinc.cloud.object_storage_bucket:
-    api_token: "{{ cubepath_token }}"
-    name: scratch-data
-    encryption: true
-
 - name: Delete a bucket and everything in it
   cubepathinc.cloud.object_storage_bucket:
     api_token: "{{ cubepath_token }}"
@@ -224,13 +200,13 @@ bucket:
     contains:
         encryption:
             description:
-                - Encryption at rest of the bucket's objects (SSE-S3).
-                - Null while encryption is off. C(scope) is C(all_objects), or C(new_objects) while
-                  objects uploaded before encryption was turned on may still be stored unencrypted
-                  (they are encrypted in the background). C(applied_at) is when it was turned on.
+                - Encryption at rest of the bucket's objects (SSE-S3, always on, nothing to configure).
+                - Null until the bucket default is applied. C(scope) is C(all_objects), or C(new_objects)
+                  while objects uploaded before the default may still be stored unencrypted (they are
+                  re-encrypted in the background).
             type: dict
             returned: always
-            sample: {"algorithm": "AES256", "scope": "all_objects", "applied_at": "2026-10-02T10:00:00"}
+            sample: {"algorithm": "AES256", "scope": "all_objects"}
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -258,7 +234,6 @@ def main():
             years=dict(type='int'),
         )),
         accept_object_lock_terms=dict(type='bool', default=False),
-        encryption=dict(type='bool'),
         force=dict(type='bool', default=False),
         bypass_governance=dict(type='bool', default=False),
         wait=dict(type='bool', default=True),
@@ -333,8 +308,6 @@ def main():
             data['object_lock'] = True
             data['object_lock_default'] = wanted_rule
             data['accept_object_lock_terms'] = True
-        if params.get('encryption') is not None:
-            data['encryption'] = params['encryption']
         api.post('/object-storage/buckets', data)
         changed = True
         bucket = fetch()
@@ -356,17 +329,6 @@ def main():
             'default_retention': wanted_rule,
             'accept_object_lock_terms': params['accept_object_lock_terms'],
         })
-        changed = True
-        bucket = fetch()
-
-    # A bucket just created already has what was asked for (its encryption may show only once active).
-    encrypted = bucket.get('encryption') is not None
-    if params.get('encryption') is False and encrypted and not changed:
-        module.fail_json(msg='Encryption at rest cannot be turned off once enabled (bucket %s)' % name, bucket=bucket)
-    if params.get('encryption') and not encrypted and not changed:
-        if module.check_mode:
-            module.exit_json(changed=True, bucket=bucket)
-        api.put('/object-storage/buckets/%s/encryption' % bucket['uuid'], {'enabled': True})
         changed = True
         bucket = fetch()
 

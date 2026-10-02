@@ -15,7 +15,7 @@ description:
       (or by I(rotate_secret=true)). Store it the first time, for example in a vault, and run the
       task with C(no_log=true).
     - Every webhook delivery carries C(CubePath-Timestamp) and C(CubePath-Signature), one or more
-      C(v1=<hex>) values, each the HMAC-SHA256 of C(timestamp + "." + raw body) with the secret.
+      C(v1=<hex>) values (C(v1=<new>, v1=<previous>) for 24 hours after a rotation), each the HMAC-SHA256 of C(timestamp + "." + raw body) with the secret.
       Reject deliveries whose timestamp is more than 5 minutes away.
 version_added: "1.7.0"
 author: CubePath (@cubepath)
@@ -25,12 +25,13 @@ options:
     state:
         description:
             - Desired state of the destination.
-            - A destination can only be deleted once no rule uses it.
+            - A destination can only be deleted once no rule uses it (rules are removed in the background, so
+              run M(cubepathinc.cloud.object_storage_event_rule) with I(state=absent) and I(wait=true) first).
         type: str
         default: present
         choices: [present, absent]
     name:
-        description: Destination name (1 to 64 characters).
+        description: Destination name, 1 to 64 letters, digits, hyphens and spaces.
         type: str
         required: true
     type:
@@ -113,6 +114,10 @@ signing_secret:
     description: The signing secret (C(whsec_...)), only when this task created a webhook destination or rotated its secret.
     type: str
     returned: when I(state=present)
+previous_secret_expires_at:
+    description: After I(rotate_secret=true), until when the previous secret keeps signing (UTC).
+    type: str
+    returned: when I(rotate_secret=true)
 '''
 
 from ansible.module_utils.basic import AnsibleModule
@@ -186,12 +191,12 @@ def main():
         module.exit_json(changed=bool(changes) or p['rotate_secret'], destination=dest, signing_secret=None)
     if changes:
         dest = api.patch('%s/%s' % (PATH, dest['uuid']), changes) or dest
-    secret = None
+    result = dict(signing_secret=None)
     if p['rotate_secret']:
         rotated = api.post('%s/%s/rotate-secret' % (PATH, dest['uuid']))
         dest = rotated.get('destination') or dest
-        secret = rotated.get('signing_secret')
-    module.exit_json(changed=bool(changes) or p['rotate_secret'], destination=dest, signing_secret=secret)
+        result = dict(signing_secret=rotated.get('signing_secret'), previous_secret_expires_at=rotated.get('previous_secret_expires_at'))
+    module.exit_json(changed=bool(changes) or p['rotate_secret'], destination=dest, **result)
 
 
 if __name__ == '__main__':

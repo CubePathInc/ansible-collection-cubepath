@@ -42,9 +42,10 @@ def test_update_url_always_and_reenable(run):
 def test_rotate_secret(run):
     result, out, router = run(destination, {'name': 'hook', 'rotate_secret': True}, {
         ('GET', DESTS): [HOOK],
-        ('POST', DESTS + '/d1/rotate-secret'): {'destination': HOOK, 'signing_secret': 'whsec_new'},
+        ('POST', DESTS + '/d1/rotate-secret'): {'destination': HOOK, 'signing_secret': 'whsec_new', 'previous_secret_expires_at': '2026-10-03T10:00:00'},
     })
     assert result == 'exit' and out['changed'] is True and out['signing_secret'] == 'whsec_new'
+    assert out['previous_secret_expires_at'] == '2026-10-03T10:00:00'
 
 
 def test_type_cannot_change(run):
@@ -84,6 +85,15 @@ def test_rule_create_waits_until_active(run):
     (method, endpoint, data, _params), = router.writes()
     assert (method, endpoint) == ('POST', RULES)
     assert data == {'name': 'new-photos', 'destination_uuid': 'd1', 'events': ['object.created'], 'prefix': 'incoming/', 'suffix': '', 'enabled': True}
+
+
+def test_rule_with_unknown_destination_is_updated(run):
+    result, out, router = run(rule_module, {'bucket': 'photos', 'name': 'new-photos', 'destination': 'hook', 'events': ['created'],
+                                            'prefix': 'incoming/', 'wait': False}, {
+        ('GET', '/object-storage/buckets'): BUCKETS, ('GET', DESTS): [HOOK], ('GET', RULES): [dict(RULE, destination=None)],
+        ('PATCH', RULES + '/r1'): RULE,
+    })
+    assert result == 'exit' and out['changed'] is True and router.writes()[0][2] == {'destination_uuid': 'd1'}
 
 
 def test_rule_unchanged(run):

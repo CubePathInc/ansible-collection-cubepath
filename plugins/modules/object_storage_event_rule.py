@@ -26,7 +26,7 @@ options:
         type: str
         required: true
     name:
-        description: Rule name.
+        description: Rule name, 1 to 64 letters, digits, hyphens and spaces.
         type: str
         required: true
     destination:

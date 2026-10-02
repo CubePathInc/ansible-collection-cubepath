@@ -187,6 +187,46 @@ def test_lock_rule_on_a_bucket_without_lock_fails(run):
     assert status == 'fail' and api.writes() == []
 
 
+ENCRYPTED = dict(BUCKET, encryption={'algorithm': 'AES256', 'scope': 'all_objects', 'applied_at': '2026-10-02T10:00:00'})
+
+
+def test_create_without_encryption(run):
+    created = dict(BUCKET, tags={}, encryption=None)
+    status, result, api = run(object_storage_bucket, {
+        'name': 'photos', 'tier': 'infrequent_access', 'encryption': False,
+    }, {LIST: ([], [created]), DETAIL: created})
+    assert status == 'exit' and result['changed']
+    assert api.writes() == [('POST', '/object-storage/buckets', {
+        'name': 'photos', 'tier': 'infrequent_access', 'versioning': False, 'encryption': False,
+    }, None)]
+
+
+def test_encryption_true_enables_it(run):
+    status, result, api = run(object_storage_bucket, {'name': 'photos', 'encryption': True},
+                              {LIST: ([BUCKET], [ENCRYPTED]), DETAIL: ENCRYPTED})
+    assert status == 'exit' and result['changed']
+    assert api.writes() == [('PUT', '/object-storage/buckets/b1/encryption', {'enabled': True}, None)]
+
+
+def test_encryption_true_on_an_encrypted_bucket_is_unchanged(run):
+    status, result, api = run(object_storage_bucket, {'name': 'photos', 'encryption': True},
+                              {LIST: [ENCRYPTED], DETAIL: ENCRYPTED})
+    assert status == 'exit' and not result['changed'] and api.writes() == []
+
+
+def test_encryption_enable_check_mode(run):
+    status, result, api = run(object_storage_bucket, {
+        'name': 'photos', 'encryption': True, '_ansible_check_mode': True,
+    }, {LIST: [BUCKET], DETAIL: BUCKET})
+    assert status == 'exit' and result['changed'] and api.writes() == []
+
+
+def test_encryption_cannot_be_turned_off(run):
+    status, result, api = run(object_storage_bucket, {'name': 'photos', 'encryption': False},
+                              {LIST: [ENCRYPTED], DETAIL: ENCRYPTED})
+    assert status == 'fail' and 'cannot be turned off' in result['msg'] and api.writes() == []
+
+
 def test_delete_with_bypass_governance(run):
     status, result, api = run(object_storage_bucket, {
         'name': 'photos', 'state': 'absent', 'force': True, 'bypass_governance': True, 'wait': False,

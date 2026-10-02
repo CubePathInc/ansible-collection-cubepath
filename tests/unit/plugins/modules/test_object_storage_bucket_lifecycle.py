@@ -33,7 +33,7 @@ def test_new_rules_are_put_normalized_and_waited_for(run):
         ('PUT', PATH): {'detail': 'Lifecycle rules are being applied', 'generation': 3},
     })
     assert result == 'exit' and out['changed'] is True and out['lifecycle']['applied_generation'] == 3
-    (method, endpoint, data, _), = router.writes()
+    (method, endpoint, data, _params), = router.writes()
     assert (method, endpoint) == ('PUT', PATH)
     assert data['rules'][0]['filter']['tags'] == [{'key': 'a', 'value': '1'}, {'key': 'b', 'value': '2'}]
     assert data['rules'][0]['enabled'] is True
@@ -46,7 +46,7 @@ def test_check_mode_changes_nothing(run):
 
 
 def test_failed_apply_fails_the_task(run):
-    result, out, _ = run(lifecycle, {'bucket': 'logs', 'rules': [{'id': 'x', 'expiration': {'days': 9}}]}, {
+    result, out, _router = run(lifecycle, {'bucket': 'logs', 'rules': [{'id': 'x', 'expiration': {'days': 9}}]}, {
         ('GET', '/object-storage/buckets'): BUCKETS,
         ('GET', PATH): (state([STORED]), dict(state([STORED], 3, 2, 'error'), error='The storage service rejected the rules')),
         ('PUT', PATH): {'generation': 3},
@@ -65,5 +65,5 @@ def test_absent(run):
 
 
 def test_unknown_bucket(run):
-    result, out, _ = run(lifecycle, {'bucket': 'nope', 'state': 'absent'}, {('GET', '/object-storage/buckets'): BUCKETS})
+    result, out, _router = run(lifecycle, {'bucket': 'nope', 'state': 'absent'}, {('GET', '/object-storage/buckets'): BUCKETS})
     assert result == 'fail' and 'not found' in out['msg']

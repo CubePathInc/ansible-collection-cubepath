@@ -194,9 +194,19 @@ EXAMPLES = r'''
 
 RETURN = r'''
 bucket:
-    description: Bucket details (endpoint, region, status, versioning, tags, object_lock, size...).
+    description: Bucket details (endpoint, region, status, versioning, tags, object_lock, encryption, size...).
     type: dict
     returned: when I(state=present)
+    contains:
+        encryption:
+            description:
+                - Encryption at rest of the bucket's objects (SSE-S3, always on, nothing to configure).
+                - Null until the bucket default is applied. C(scope) is C(all_objects), or C(new_objects)
+                  while objects uploaded before the default may still be stored unencrypted (they are
+                  re-encrypted in the background).
+            type: dict
+            returned: always
+            sample: {"algorithm": "AES256", "scope": "all_objects"}
 '''
 
 from ansible.module_utils.basic import AnsibleModule

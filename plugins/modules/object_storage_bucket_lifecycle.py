@@ -13,7 +13,7 @@ description:
       of their due date.
     - In a versioned bucket an expiration only adds a delete marker; add a
       C(noncurrent_version_expiration) rule to free the space.
-    - Rules are applied asynchronously (seconds, up to 10 minutes after a previous change of the
+    - Rules are applied asynchronously (seconds, up to about 12 minutes after a previous change of the
       same bucket); by default the module waits until they are applied.
     - The module is idempotent. It compares the normalized rules with the bucket's and only
       writes when they differ.

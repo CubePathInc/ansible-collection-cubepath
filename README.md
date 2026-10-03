@@ -97,6 +97,8 @@ All modules require a CubePath API token. You can provide it via:
 - `cubepathinc.cloud.object_storage_bucket_lifecycle` - Set or remove every lifecycle rule of a bucket (objects are deleted permanently, within 48 hours of their due date)
 - `cubepathinc.cloud.object_storage_replication` - Replicate a bucket to another CubePath bucket of the same tier or to an external S3 compatible bucket over HTTPS (versioning required, no Object Lock on the source; the external secret is never returned)
 - `cubepathinc.cloud.object_storage_replication_grant` - Let another organization replicate into a bucket with a one use grant (the token is returned only on create)
+- `cubepathinc.cloud.object_storage_event_destination` - Manage event notification destinations: signed webhooks or Slack/Discord channels (the signing secret is returned only on create or with `rotate_secret`)
+- `cubepathinc.cloud.object_storage_event_rule` - Send a bucket's object events (created, removed, tagging) matching a prefix and suffix to a destination
 
 To serve a bucket publicly, add it to a CDN zone with `cubepathinc.cloud.cdn_origin` and
 `object_storage_bucket_uuid`. Buckets are never public on their own.

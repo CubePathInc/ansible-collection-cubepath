@@ -225,3 +225,78 @@ def test_read_only_key_cannot_bypass_governance(run):
         'name': 'veeam', 'tier': 'infrequent_access', 'permission': 'read_only', 'bypass_governance': True,
     }, {('GET', '/object-storage/keys'): []})
     assert status == 'fail' and api.writes() == []
+
+
+KEYS = ('GET', '/object-storage/keys')
+KEY = {'uuid': 'k1', 'name': 'app', 'status': 'active', 'permission': 'read_write', 'bypass_governance': False,
+       'bucket_scope': [{'uuid': 'b1', 'name': 'photos'}], 'tier': {'slug': 'infrequent_access'}}
+PATCH_KEY = ('PATCH', '/object-storage/keys/k1')
+
+
+def test_key_converged_sends_nothing(run):
+    status, result, api = run(object_storage_access_key, {
+        'name': 'app', 'permission': 'read_write', 'buckets': ['photos'], 'bypass_governance': False,
+    }, {KEYS: [KEY], ('GET', '/object-storage/buckets'): [BUCKET]})
+    assert status == 'exit' and not result['changed'] and api.writes() == []
+
+
+def test_key_unset_options_are_not_managed(run):
+    key = dict(KEY, permission='read_only', bypass_governance=True, bucket_scope=None)
+    status, result, api = run(object_storage_access_key, {'name': 'app'}, {KEYS: [key]})
+    assert status == 'exit' and not result['changed'] and api.writes() == []
+
+
+def test_key_permission_only_is_sent(run):
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'permission': 'read_only'},
+                              {KEYS: (([KEY],) * 2 + ([dict(KEY, permission='read_only')],))})
+    assert status == 'exit' and result['changed']
+    assert api.writes() == [('PATCH', '/object-storage/keys/k1', {'permission': 'read_only'}, None)]
+
+
+def test_key_buckets_compared_as_sets(run):
+    other = {'uuid': 'b2', 'name': 'logs', 'status': 'active'}
+    key = dict(KEY, bucket_scope=[{'uuid': 'b2', 'name': 'logs'}, {'uuid': 'b1', 'name': 'photos'}])
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'buckets': ['photos', 'logs']},
+                              {KEYS: [key], ('GET', '/object-storage/buckets'): [BUCKET, other]})
+    assert not result['changed'] and api.writes() == []
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'buckets': ['logs']},
+                              {KEYS: [key], ('GET', '/object-storage/buckets'): [BUCKET, other]})
+    assert result['changed']
+    assert api.writes() == [('PATCH', '/object-storage/keys/k1', {'bucket_uuids': ['b2']}, None)]
+
+
+def test_key_all_buckets_sends_null(run):
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'all_buckets': True}, {KEYS: [KEY]})
+    assert status == 'exit' and result['changed']
+    assert api.writes() == [('PATCH', '/object-storage/keys/k1', {'bucket_uuids': None}, None)]
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'all_buckets': True},
+                              {KEYS: [dict(KEY, bucket_scope=None)]})
+    assert not result['changed'] and api.writes() == []
+
+
+def test_key_buckets_and_all_buckets_are_exclusive(run):
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'buckets': ['photos'], 'all_buckets': True},
+                              {KEYS: [KEY]})
+    assert status == 'fail' and api.writes() == []
+
+
+def test_key_empty_buckets_fails_on_existing_key(run):
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'buckets': []}, {KEYS: [KEY]})
+    assert status == 'fail' and api.writes() == []
+
+
+def test_key_bypass_key_to_read_only_needs_bypass_off(run):
+    key = dict(KEY, bypass_governance=True)
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'permission': 'read_only'}, {KEYS: [key]})
+    assert status == 'fail' and api.writes() == []
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'permission': 'read_only', 'bypass_governance': False},
+                              {KEYS: [key]})
+    assert status == 'exit' and result['changed']
+    assert api.writes() == [('PATCH', '/object-storage/keys/k1', {'permission': 'read_only', 'bypass_governance': False}, None)]
+
+
+def test_key_check_mode_reports_the_diff(run):
+    status, result, api = run(object_storage_access_key, {'name': 'app', 'permission': 'read_only', '_ansible_check_mode': True},
+                              {KEYS: [KEY]})
+    assert status == 'exit' and result['changed'] and api.writes() == []
+    assert result['diff']['after']['permission'] == 'read_only'

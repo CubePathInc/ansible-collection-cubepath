@@ -45,6 +45,14 @@
       register: key
       no_log: true
 
+    - name: Later, widen the key to every bucket of the project (same key id and secret)
+      cubepathinc.cloud.object_storage_access_key:
+        api_token: "{{ cubepath_token }}"
+        name: my-app
+        all_buckets: true
+        state: present
+      no_log: true
+
     - name: Create CDN zone
       cubepathinc.cloud.cdn_zone:
         api_token: "{{ cubepath_token }}"

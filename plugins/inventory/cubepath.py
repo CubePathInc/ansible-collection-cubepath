@@ -59,6 +59,8 @@ from ansible.plugins.inventory import BaseInventoryPlugin, Constructable
 from ansible.module_utils.urls import open_url
 from ansible.module_utils.six.moves.urllib.error import HTTPError, URLError
 
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import USER_AGENT
+
 
 class InventoryModule(BaseInventoryPlugin, Constructable):
 
@@ -79,7 +81,7 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         headers = {
             'Authorization': 'Bearer %s' % api_token,
             'Content-Type': 'application/json',
-            'User-Agent': 'CubePathAnsible/1.1',
+            'User-Agent': USER_AGENT,
             'X-Requested-With': 'XMLHttpRequest',
         }
 

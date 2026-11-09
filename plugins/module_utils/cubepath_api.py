@@ -13,6 +13,12 @@ from ansible.module_utils.six.moves.urllib.parse import quote, urlencode
 
 DEFAULT_API_URL = 'https://api.cubepath.com'
 
+# Version of the collection, the same as `version` in galaxy.yml (a unit test compares them, so a
+# release bumps both). It goes into the User-Agent of every request, so the API logs can tell the
+# collection versions apart.
+COLLECTION_VERSION = '1.7.0'
+USER_AGENT = 'CubePathAnsible/%s' % COLLECTION_VERSION
+
 
 def cubepath_argument_spec():
     return dict(
@@ -49,7 +55,7 @@ class CubePathAPI:
         self.headers = {
             'Authorization': 'Bearer %s' % self.api_token,
             'Content-Type': 'application/json',
-            'User-Agent': 'CubePathAnsible/1.1',
+            'User-Agent': USER_AGENT,
             'X-Requested-With': 'XMLHttpRequest',
         }
 

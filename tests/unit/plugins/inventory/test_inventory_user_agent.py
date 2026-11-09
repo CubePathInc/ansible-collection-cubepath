@@ -2,10 +2,11 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+import os
+import re
 from unittest import mock
 
 from ansible_collections.cubepathinc.cloud.plugins.inventory import cubepath
-from ansible_collections.cubepathinc.cloud.plugins.module_utils import cubepath_api
 
 
 def test_inventory_requests_send_the_collection_user_agent():
@@ -19,5 +20,7 @@ def test_inventory_requests_send_the_collection_user_agent():
             mock.patch.object(cubepath, 'open_url', return_value=response) as open_url:
         plugin.parse(mock.Mock(), mock.Mock(), 'x.cubepath.yml')
     headers = open_url.call_args.kwargs['headers']
-    assert headers['User-Agent'] == cubepath_api.USER_AGENT
-    assert headers['User-Agent'].startswith('CubePathAnsible/1.')
+    galaxy = os.path.join(os.path.dirname(__file__), '..', '..', '..', '..', 'galaxy.yml')
+    with open(galaxy) as f:
+        version = re.search(r'^version:\s*([0-9][^\s#]*)\s*$', f.read(), re.M).group(1)
+    assert headers['User-Agent'] == 'CubePathAnsible/%s' % version

@@ -16,7 +16,7 @@ def test_inventory_requests_send_the_collection_user_agent():
     response.read.return_value = b'[]'
     with mock.patch.object(cubepath.BaseInventoryPlugin, 'parse'), \
             mock.patch.object(plugin, '_read_config_data'), \
-            mock.patch.object(plugin, 'get_option', side_effect=lambda name: options.get(name)), \
+            mock.patch.object(plugin, 'get_option', side_effect=options.get), \
             mock.patch.object(cubepath, 'open_url', return_value=response) as open_url:
         plugin.parse(mock.Mock(), mock.Mock(), 'x.cubepath.yml')
     headers = open_url.call_args.kwargs['headers']

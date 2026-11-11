@@ -2,6 +2,7 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
+import contextlib
 import json
 
 import pytest
@@ -76,7 +77,30 @@ class Router(object):
 
 
 @pytest.fixture
-def run(monkeypatch):
+def set_module_args(monkeypatch):
+    """Returns a function that hands the given module arguments to the next AnsibleModule.
+
+    ansible-core 2.19 serializes module arguments with a profile and basic.py raises "No serialization
+    profile was specified" when only basic._ANSIBLE_ARGS is set, so there the public helper
+    ansible.module_utils.testing.patch_module_args does it. Older cores (2.15 to 2.18) have no such helper
+    and read basic._ANSIBLE_ARGS directly.
+    """
+    stack = contextlib.ExitStack()
+
+    def _set(args):
+        try:
+            from ansible.module_utils.testing import patch_module_args
+        except ImportError:
+            monkeypatch.setattr(basic, '_ANSIBLE_ARGS', to_bytes(json.dumps({'ANSIBLE_MODULE_ARGS': args})))
+        else:
+            stack.enter_context(patch_module_args(args))
+
+    yield _set
+    stack.close()
+
+
+@pytest.fixture
+def run(monkeypatch, set_module_args):
     monkeypatch.setattr(basic.AnsibleModule, 'exit_json', _exit_json)
     monkeypatch.setattr(basic.AnsibleModule, 'fail_json', _fail_json)
     monkeypatch.setattr(cubepath_common.time, 'sleep', lambda s: None)
@@ -85,7 +109,7 @@ def run(monkeypatch):
         router = Router(routes)
         monkeypatch.setattr(module, 'CubePathAPI', lambda m: router)
         args = dict(args, api_token='t')
-        basic._ANSIBLE_ARGS = to_bytes(json.dumps({'ANSIBLE_MODULE_ARGS': args}))
+        set_module_args(args)
         try:
             module.main()
         except ExitJson as e:

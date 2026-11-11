@@ -19,8 +19,8 @@ options:
         description: Filter by hostname.
         type: str
     baremetal_id:
-        description: Filter by baremetal ID.
-        type: int
+        description: Filter by baremetal number or uuid.
+        type: str
     project_id:
         description: Filter by project ID.
         type: int
@@ -49,6 +49,13 @@ EXAMPLES = r'''
     baremetal_id: 10
     gather: [os]
   register: bm
+
+- name: The same server by its uuid
+  cubepathinc.cloud.baremetal_info:
+    api_token: "{{ cubepath_token }}"
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
+    gather: [kvm]
+  register: bm_kvm
 '''
 
 RETURN = r'''
@@ -78,6 +85,7 @@ kvm:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_matches, baremetal_ref_param
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import collect_resources_from_projects
 
 
@@ -85,12 +93,13 @@ def main():
     argument_spec = cubepath_argument_spec()
     argument_spec.update(
         hostname=dict(type='str'),
-        baremetal_id=dict(type='int'),
+        baremetal_id=dict(type='str'),
         project_id=dict(type='int'),
         gather=dict(type='list', elements='str', default=[], choices=['models', 'os', 'kvm']),
     )
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+    baremetal_id = baremetal_ref_param(module)
     api = CubePathAPI(module)
 
     filters = {}
@@ -100,23 +109,22 @@ def main():
     servers = collect_resources_from_projects(api, 'baremetals', filters or None)
 
     hostname = module.params.get('hostname')
-    baremetal_id = module.params.get('baremetal_id')
     if hostname:
         servers = [s for s in servers if s.get('hostname') == hostname]
-    if baremetal_id:
-        servers = [s for s in servers if s.get('id') == baremetal_id]
+    if baremetal_id is not None:
+        servers = [s for s in servers if baremetal_matches(s, baremetal_id)]
 
     result = {'changed': False, 'servers': servers}
     gather = module.params['gather']
-    if ('os' in gather or 'kvm' in gather) and not baremetal_id:
+    if ('os' in gather or 'kvm' in gather) and baremetal_id is None:
         module.fail_json(msg='baremetal_id is required to gather os or kvm')
     if 'models' in gather:
         result['models'] = (api.get('/baremetal/models') or {}).get('locations', [])
     if 'os' in gather:
-        os_list = api.get('/baremetal/os/%d' % baremetal_id)
+        os_list = api.get('/baremetal/os/%s' % baremetal_id)
         result['os'] = os_list if isinstance(os_list, list) else []
     if 'kvm' in gather:
-        result['kvm'] = api.get('/baremetal/%d/kvm' % baremetal_id)
+        result['kvm'] = api.get('/baremetal/%s/kvm' % baremetal_id)
 
     module.exit_json(**result)
 

@@ -35,8 +35,8 @@ options:
         description: VPS ID to assign the address to. Used when I(state=assigned).
         type: int
     baremetal_id:
-        description: Baremetal ID to assign the address to. Used when I(state=assigned).
-        type: int
+        description: Baremetal number or uuid to assign the address to. Used when I(state=assigned).
+        type: str
 notes:
     - I(state=acquired) and I(state=released) are limited by the API to 3 per organization every 24 hours.
     - The address returned by I(state=acquired) is in C(result.ip_address).
@@ -80,6 +80,7 @@ result:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_ref_param
 
 
 def main():
@@ -90,7 +91,7 @@ def main():
         location=dict(type='str'),
         address=dict(type='str'),
         vps_id=dict(type='int'),
-        baremetal_id=dict(type='int'),
+        baremetal_id=dict(type='str'),
     )
 
     module = AnsibleModule(
@@ -110,6 +111,8 @@ def main():
     state = module.params['state']
     address = module.params['address']
 
+    baremetal_id = baremetal_ref_param(module) if state == 'assigned' else None
+
     if module.check_mode:
         module.exit_json(changed=True)
 
@@ -126,7 +129,7 @@ def main():
         if module.params.get('vps_id'):
             endpoint = '/floating_ips/assign/vps/%d' % module.params['vps_id']
         else:
-            endpoint = '/floating_ips/assign/baremetal/%d' % module.params['baremetal_id']
+            endpoint = '/floating_ips/assign/baremetal/%s' % baremetal_id
         result = api.post(endpoint, params={'address': address})
         module.exit_json(changed=True, result=result)
 

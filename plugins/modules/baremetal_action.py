@@ -24,8 +24,8 @@ options:
         choices: [reinstall, rescue, reset_bmc, update, monitoring_enable, monitoring_disable, cancel_reinstall,
                   protect, unprotect, move_project, add_ssh_keys, remove_ssh_key, attach_network, detach_network]
     baremetal_id:
-        description: ID of the baremetal server.
-        type: int
+        description: Number or uuid of the baremetal server.
+        type: str
         required: true
     os:
         description: OS name. Required when I(action=reinstall).
@@ -96,6 +96,7 @@ result:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_ref_param
 
 
 def main():
@@ -106,7 +107,7 @@ def main():
             'monitoring_enable', 'monitoring_disable', 'cancel_reinstall', 'protect', 'unprotect',
             'move_project', 'add_ssh_keys', 'remove_ssh_key', 'attach_network', 'detach_network',
         ]),
-        baremetal_id=dict(type='int', required=True),
+        baremetal_id=dict(type='str', required=True),
         os=dict(type='str'),
         hostname=dict(type='str'),
         user=dict(type='str', default='root'),
@@ -132,10 +133,10 @@ def main():
 
     api = CubePathAPI(module)
     action = module.params['action']
-    bid = module.params['baremetal_id']
+    bid = baremetal_ref_param(module)
 
     if module.check_mode:
-        module.exit_json(changed=True, msg='Would %s baremetal %d' % (action, bid))
+        module.exit_json(changed=True, msg='Would %s baremetal %s' % (action, bid))
 
     result = {}
     if action == 'reinstall':
@@ -147,11 +148,11 @@ def main():
         }
         if module.params.get('disk_layout'):
             data['disk_layout_name'] = module.params['disk_layout']
-        result = api.post('/baremetal/%d/reinstall' % bid, data)
+        result = api.post('/baremetal/%s/reinstall' % bid, data)
     elif action == 'rescue':
-        result = api.post('/baremetal/%d/rescue' % bid)
+        result = api.post('/baremetal/%s/rescue' % bid)
     elif action == 'reset_bmc':
-        result = api.post('/baremetal/%d/reset-bmc' % bid)
+        result = api.post('/baremetal/%s/reset-bmc' % bid)
     elif action == 'update':
         data = {}
         if module.params.get('hostname'):
@@ -160,26 +161,26 @@ def main():
             data['tags'] = module.params['tags']
         if not data:
             module.fail_json(msg='At least one of hostname or tags required for update')
-        result = api.patch('/baremetal/update/%d' % bid, data)
+        result = api.patch('/baremetal/update/%s' % bid, data)
     elif action == 'monitoring_enable':
-        result = api.put('/baremetal/%d/monitoring?enable=true' % bid)
+        result = api.put('/baremetal/%s/monitoring?enable=true' % bid)
     elif action == 'monitoring_disable':
-        result = api.put('/baremetal/%d/monitoring?enable=false' % bid)
+        result = api.put('/baremetal/%s/monitoring?enable=false' % bid)
     elif action == 'cancel_reinstall':
-        result = api.delete('/baremetal/%d/reinstall' % bid)
+        result = api.delete('/baremetal/%s/reinstall' % bid)
     elif action in ('protect', 'unprotect'):
-        result = api.post('/baremetal/%d/protection' % bid, {'enabled': action == 'protect'})
+        result = api.post('/baremetal/%s/protection' % bid, {'enabled': action == 'protect'})
     elif action == 'move_project':
-        result = api.post('/baremetal/%d/move-project' % bid, {'project_id': module.params['project_id']})
+        result = api.post('/baremetal/%s/move-project' % bid, {'project_id': module.params['project_id']})
     elif action == 'add_ssh_keys':
-        result = api.post('/baremetal/%d/ssh-keys' % bid, module.params['ssh_key_ids'])
+        result = api.post('/baremetal/%s/ssh-keys' % bid, module.params['ssh_key_ids'])
     elif action == 'remove_ssh_key':
         for key_id in module.params['ssh_key_ids']:
-            result = api.delete('/baremetal/%d/ssh-keys/%d' % (bid, key_id))
+            result = api.delete('/baremetal/%s/ssh-keys/%d' % (bid, key_id))
     elif action == 'attach_network':
-        result = api.post('/baremetal/%d/network' % bid, {'network_id': module.params['network_id']})
+        result = api.post('/baremetal/%s/network' % bid, {'network_id': module.params['network_id']})
     elif action == 'detach_network':
-        result = api.delete('/baremetal/%d/network' % bid)
+        result = api.delete('/baremetal/%s/network' % bid)
 
     module.exit_json(changed=True, result=result)
 

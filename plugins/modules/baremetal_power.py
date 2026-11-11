@@ -14,8 +14,8 @@ extends_documentation_fragment:
     - cubepathinc.cloud.cubepath
 options:
     baremetal_id:
-        description: ID of the baremetal server.
-        type: int
+        description: Number or uuid of the baremetal server.
+        type: str
         required: true
     state:
         description: Desired power state.
@@ -41,6 +41,7 @@ msg:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_ref_param
 
 POWER_MAP = {
     'started': 'start_metal',
@@ -52,22 +53,22 @@ POWER_MAP = {
 def main():
     argument_spec = cubepath_argument_spec()
     argument_spec.update(
-        baremetal_id=dict(type='int', required=True),
+        baremetal_id=dict(type='str', required=True),
         state=dict(type='str', required=True, choices=['started', 'stopped', 'restarted']),
     )
 
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
     api = CubePathAPI(module)
 
-    baremetal_id = module.params['baremetal_id']
+    baremetal_id = baremetal_ref_param(module)
     state = module.params['state']
     action = POWER_MAP[state]
 
     if module.check_mode:
-        module.exit_json(changed=True, msg='Would %s baremetal %d' % (action, baremetal_id))
+        module.exit_json(changed=True, msg='Would %s baremetal %s' % (action, baremetal_id))
 
-    api.post('/baremetal/%d/power/%s' % (baremetal_id, action))
-    module.exit_json(changed=True, msg='Baremetal %d power action %s executed' % (baremetal_id, action))
+    api.post('/baremetal/%s/power/%s' % (baremetal_id, action))
+    module.exit_json(changed=True, msg='Baremetal %s power action %s executed' % (baremetal_id, action))
 
 
 if __name__ == '__main__':

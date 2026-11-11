@@ -121,6 +121,8 @@ class InventoryModule(BaseInventoryPlugin, Constructable):
         self.inventory.add_host(hostname)
         self.inventory.set_variable(hostname, 'ansible_host', ip)
         self.inventory.set_variable(hostname, 'cubepath_id', data.get('id'))
+        if host_type == 'baremetal':
+            self.inventory.set_variable(hostname, 'cubepath_uuid', data.get('uuid') or '')
         self.inventory.set_variable(hostname, 'cubepath_type', host_type)
         self.inventory.set_variable(hostname, 'cubepath_status', data.get('status', ''))
         self.inventory.set_variable(hostname, 'cubepath_location', data.get('location_name', ''))

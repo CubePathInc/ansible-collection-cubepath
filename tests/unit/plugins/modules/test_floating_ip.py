@@ -2,12 +2,9 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-import json
-
 import pytest
 
 from ansible.module_utils import basic
-from ansible.module_utils.common.text.converters import to_bytes
 
 from ansible_collections.cubepathinc.cloud.plugins.modules import floating_ip
 
@@ -47,40 +44,42 @@ def patched(monkeypatch):
     monkeypatch.setattr(floating_ip, 'CubePathAPI', FakeAPI)
 
 
-def run(args):
-    args = dict(args, api_token='t')
-    basic._ANSIBLE_ARGS = to_bytes(json.dumps({'ANSIBLE_MODULE_ARGS': args}))
-    with pytest.raises((ExitJson, FailJson)) as exc:
-        floating_ip.main()
-    return exc
+@pytest.fixture
+def run(set_module_args):
+    def _run(args):
+        set_module_args(dict(args, api_token='t'))
+        with pytest.raises((ExitJson, FailJson)) as exc:
+            floating_ip.main()
+        return exc
+    return _run
 
 
-def test_acquire_sends_query_params():
+def test_acquire_sends_query_params(run):
     run({'state': 'acquired', 'location': 'eu-bcn-1'})
     assert FakeAPI.calls == [('POST', '/floating_ips/acquire', None, {'ip_type': 'IPv4', 'location_name': 'eu-bcn-1'})]
 
 
-def test_release_puts_the_address_in_the_path():
+def test_release_puts_the_address_in_the_path(run):
     run({'state': 'released', 'address': '203.0.113.7'})
     assert FakeAPI.calls == [('POST', '/floating_ips/release/203.0.113.7', None, None)]
 
 
-def test_assign_vps_sends_the_address_as_query():
+def test_assign_vps_sends_the_address_as_query(run):
     run({'state': 'assigned', 'address': '203.0.113.7', 'vps_id': 42})
     assert FakeAPI.calls == [('POST', '/floating_ips/assign/vps/42', None, {'address': '203.0.113.7'})]
 
 
-def test_assign_baremetal():
+def test_assign_baremetal(run):
     run({'state': 'assigned', 'address': '203.0.113.7', 'baremetal_id': '6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31'})
     assert FakeAPI.calls == [('POST', '/floating_ips/assign/baremetal/6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31', None, {'address': '203.0.113.7'})]
 
 
-def test_assign_needs_a_target():
+def test_assign_needs_a_target(run):
     exc = run({'state': 'assigned', 'address': '203.0.113.7'})
     assert exc.type is FailJson
     assert FakeAPI.calls == []
 
 
-def test_unassign_by_address():
+def test_unassign_by_address(run):
     run({'state': 'unassigned', 'address': '203.0.113.7'})
     assert FakeAPI.calls == [('POST', '/floating_ips/unassign/203.0.113.7', None, None)]

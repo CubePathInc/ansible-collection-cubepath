@@ -15,19 +15,14 @@ def _variables(data, host_type='baremetal'):
     return {c.args[1]: c.args[2] for c in plugin.inventory.set_variable.call_args_list}
 
 
-def test_baremetal_exposes_uuid_and_keeps_the_id():
+def test_baremetal_id_and_uuid_are_the_uuid():
     uuid = '6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31'
-    variables = _variables({'id': 7, 'uuid': uuid, 'hostname': 'bm1', 'main_ip': '192.0.2.1'})
-    assert variables['cubepath_id'] == 7
+    variables = _variables({'id': uuid, 'uuid': uuid, 'hostname': 'bm1', 'main_ip': '192.0.2.1'})
+    assert variables['cubepath_id'] == uuid
     assert variables['cubepath_uuid'] == uuid
-
-
-def test_baremetal_without_uuid_gets_an_empty_one():
-    variables = _variables({'id': 7, 'hostname': 'bm1', 'main_ip': '192.0.2.1'})
-    assert variables['cubepath_id'] == 7
-    assert variables['cubepath_uuid'] == ''
 
 
 def test_vps_has_no_uuid_variable():
     variables = _variables({'id': 3, 'name': 'v1', 'main_ip': '192.0.2.2'}, 'vps')
+    assert variables['cubepath_id'] == 3
     assert 'cubepath_uuid' not in variables

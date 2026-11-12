@@ -42,7 +42,7 @@ options:
         description:
             - >-
               Target for the next hop. Meaning depends on I(next_hop_type) -
-              an IP address string for C(ip), or a resource ID/UUID for C(vps) or C(baremetal).
+              an IP address string for C(ip), the VPS ID for C(vps), or the server uuid for C(baremetal).
             - Required when I(state=present).
         type: str
     description:
@@ -102,13 +102,14 @@ route:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_target_param
 
 
 def find_route(api, network_id, destination, next_hop_target):
     routes = api.get('/networks/%d/routes' % network_id)
     if isinstance(routes, list):
         for r in routes:
-            if r.get('destination') == destination and r.get('next_hop_target') == next_hop_target:
+            if r.get('destination') == destination and str(r.get('next_hop_target')).lower() == next_hop_target.lower():
                 return r
     return None
 
@@ -131,6 +132,7 @@ def main():
         supports_check_mode=True,
     )
 
+    baremetal_target_param(module, 'next_hop_type', 'next_hop_target')
     api = CubePathAPI(module)
     state = module.params['state']
     network_id = module.params['network_id']

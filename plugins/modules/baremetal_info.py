@@ -19,7 +19,7 @@ options:
         description: Filter by hostname.
         type: str
     baremetal_id:
-        description: Filter by baremetal number or uuid.
+        description: Filter by baremetal server uuid.
         type: str
     project_id:
         description: Filter by project ID.
@@ -43,19 +43,12 @@ EXAMPLES = r'''
     api_token: "{{ cubepath_token }}"
   register: servers
 
-- name: Operating systems a server can be reinstalled with
-  cubepathinc.cloud.baremetal_info:
-    api_token: "{{ cubepath_token }}"
-    baremetal_id: 10
-    gather: [os]
-  register: bm
-
-- name: The same server by its uuid
+- name: Operating systems a server can be reinstalled with, and its KVM console
   cubepathinc.cloud.baremetal_info:
     api_token: "{{ cubepath_token }}"
     baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
-    gather: [kvm]
-  register: bm_kvm
+    gather: [os, kvm]
+  register: bm
 '''
 
 RETURN = r'''

@@ -33,7 +33,10 @@ options:
         type: str
         choices: [vps, baremetal, availability_group]
     target_uuid:
-        description: Target resource UUID. Required for I(state=absent) or I(state=draining).
+        description:
+            - Target resource when adding a target with I(target_type) (the VPS ID, the baremetal server uuid or the
+              availability group UUID), else the UUID of the target row. Required for I(state=absent) or
+              I(state=draining).
         type: str
     port:
         description: Override target port.
@@ -58,7 +61,7 @@ options:
                 required: true
                 choices: [vps, baremetal, availability_group]
             target_uuid:
-                description: Target resource ID or UUID.
+                description: VPS ID, baremetal server uuid or availability group UUID.
                 type: str
                 required: true
             port:
@@ -118,6 +121,9 @@ targets:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import (
+    baremetal_target_param, normalize_baremetal_ref,
+)
 
 
 def add_batch(module, api, lb_uuid, listener_uuid, base):
@@ -131,6 +137,12 @@ def add_batch(module, api, lb_uuid, listener_uuid, base):
                 current = set((t.get('target_type'), str(t.get('target_uuid'))) for t in listener.get('targets') or [])
     new = []
     for t in module.params['targets']:
+        if t['target_type'] == 'baremetal':
+            ref = normalize_baremetal_ref(t['target_uuid'])
+            if ref is None:
+                module.fail_json(msg='target_uuid of a baremetal target must be the server uuid '
+                                     '(baremetal reference must be a uuid), got %r' % t['target_uuid'])
+            t['target_uuid'] = ref
         if (t['target_type'], str(t['target_uuid'])) in current:
             continue
         new.append(dict((k, v) for k, v in t.items() if v is not None))
@@ -197,6 +209,7 @@ def main():
 
         if not module.params.get('target_type') or not target_uuid:
             module.fail_json(msg='target_type and target_uuid required when adding a target')
+        target_uuid = baremetal_target_param(module, 'target_type', 'target_uuid')
 
         if module.check_mode:
             module.exit_json(changed=True)

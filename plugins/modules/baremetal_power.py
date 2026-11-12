@@ -14,7 +14,7 @@ extends_documentation_fragment:
     - cubepathinc.cloud.cubepath
 options:
     baremetal_id:
-        description: Number or uuid of the baremetal server.
+        description: Uuid of the baremetal server.
         type: str
         required: true
     state:
@@ -28,7 +28,7 @@ EXAMPLES = r'''
 - name: Start baremetal
   cubepathinc.cloud.baremetal_power:
     api_token: "{{ cubepath_token }}"
-    baremetal_id: 10
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
     state: started
 '''
 

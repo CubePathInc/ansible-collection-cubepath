@@ -24,7 +24,7 @@ options:
         choices: [reinstall, rescue, reset_bmc, update, monitoring_enable, monitoring_disable, cancel_reinstall,
                   protect, unprotect, move_project, add_ssh_keys, remove_ssh_key, attach_network, detach_network]
     baremetal_id:
-        description: Number or uuid of the baremetal server.
+        description: Uuid of the baremetal server.
         type: str
         required: true
     os:
@@ -68,7 +68,7 @@ EXAMPLES = r'''
   cubepathinc.cloud.baremetal_action:
     api_token: "{{ cubepath_token }}"
     action: reinstall
-    baremetal_id: 10
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
     os: "Debian 13"
     hostname: db-01
     password: "{{ vault_password }}"
@@ -77,13 +77,13 @@ EXAMPLES = r'''
   cubepathinc.cloud.baremetal_action:
     api_token: "{{ cubepath_token }}"
     action: rescue
-    baremetal_id: 10
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
 
 - name: Move a server to another project
   cubepathinc.cloud.baremetal_action:
     api_token: "{{ cubepath_token }}"
     action: move_project
-    baremetal_id: 10
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
     project_id: 7
 '''
 

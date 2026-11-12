@@ -71,8 +71,8 @@ def test_assign_vps_sends_the_address_as_query():
 
 
 def test_assign_baremetal():
-    run({'state': 'assigned', 'address': '203.0.113.7', 'baremetal_id': 9})
-    assert FakeAPI.calls == [('POST', '/floating_ips/assign/baremetal/9', None, {'address': '203.0.113.7'})]
+    run({'state': 'assigned', 'address': '203.0.113.7', 'baremetal_id': '6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31'})
+    assert FakeAPI.calls == [('POST', '/floating_ips/assign/baremetal/6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31', None, {'address': '203.0.113.7'})]
 
 
 def test_assign_needs_a_target():

@@ -41,6 +41,12 @@ All modules require a CubePath API token. You can provide it via:
 - `cubepathinc.cloud.baremetal_power` - Manage baremetal power state
 - `cubepathinc.cloud.baremetal_action` - Reinstall, rescue, reset BMC, update, protect, move, SSH keys and private network of a baremetal server
 
+A baremetal server is named by its uuid: `baremetal_id` of these modules and of `floating_ip`, and the baremetal
+target of `network_route`, `network_bgp_peer`, `loadbalancer_target` and `cloud_alert`, take the uuid, and the
+inventory sets `cubepath_id` (and `cubepath_uuid`) of a baremetal host to it. **Breaking change (unreleased):**
+the API no longer knows server numbers, so a playbook that passes a number now fails before any request with
+`must be the baremetal server uuid`; use the uuid shown in the dashboard or returned as `id`.
+
 ### Kubernetes
 - `cubepathinc.cloud.kubernetes_cluster` - Manage Kubernetes clusters
 - `cubepathinc.cloud.kubernetes_node_pool` - Manage node pools

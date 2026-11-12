@@ -45,7 +45,7 @@ options:
         choices: [vps, baremetal, availability_group, object_storage_bucket, organization]
     target_id:
         description:
-            - ID of the VPS or baremetal server, UUID of the availability group or of the bucket, or the
+            - ID of the VPS, uuid of the baremetal server, UUID of the availability group or of the bucket, or the
               organization ID when I(target_type=organization). Required to create the alert.
             - A bucket alert must be created in the bucket's project. An organization alert still needs a
               I(project_id); it is listed under that project and deleted with it.
@@ -152,6 +152,7 @@ alert:
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_alerts import ALERTS, find_alert, list_channels
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_target_param
 
 FIELDS = (
     ('description', 'description'), ('target_type', 'target_type'), ('target_id', 'target_id'),
@@ -196,6 +197,8 @@ def main():
         enabled=dict(type='bool'),
     )
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+    if module.params.get('target_id') is not None:
+        baremetal_target_param(module, 'target_type', 'target_id')
 
     api = CubePathAPI(module)
     p = module.params

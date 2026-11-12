@@ -35,7 +35,7 @@ options:
         description: VPS ID to assign the address to. Used when I(state=assigned).
         type: int
     baremetal_id:
-        description: Baremetal number or uuid to assign the address to. Used when I(state=assigned).
+        description: Uuid of the baremetal server to assign the address to. Used when I(state=assigned).
         type: str
 notes:
     - I(state=acquired) and I(state=released) are limited by the API to 3 per organization every 24 hours.
@@ -57,6 +57,13 @@ EXAMPLES = r'''
     state: assigned
     address: "{{ fip.result.ip_address }}"
     vps_id: 123
+
+- name: Assign it to a baremetal server, by its uuid
+  cubepathinc.cloud.floating_ip:
+    api_token: "{{ cubepath_token }}"
+    state: assigned
+    address: "{{ fip.result.ip_address }}"
+    baremetal_id: 6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31
 
 - name: Unassign it
   cubepathinc.cloud.floating_ip:

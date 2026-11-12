@@ -32,7 +32,7 @@ options:
         type: str
         choices: [ip, vps, baremetal]
     peer_target:
-        description: IP address inside the network, or ID of the VPS or baremetal server attached to it.
+        description: IP address inside the network, ID of the VPS or uuid of the baremetal server attached to it.
         type: str
         required: true
     remote_asn:
@@ -70,6 +70,7 @@ peer:
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_api import CubePathAPI, cubepath_argument_spec
+from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_baremetal import baremetal_target_param
 from ansible_collections.cubepathinc.cloud.plugins.module_utils.cubepath_common import as_list
 
 
@@ -86,13 +87,14 @@ def main():
         enabled=dict(type='bool'),
     )
     module = AnsibleModule(argument_spec=argument_spec, supports_check_mode=True)
+    baremetal_target_param(module, 'peer_type', 'peer_target')
 
     api = CubePathAPI(module)
     p = module.params
     base = '/networks/%d/bgp-peers' % p['network_id']
 
     def fetch():
-        return next((b for b in as_list(api.get(base)) if str(b.get('peer_target')) == p['peer_target']), None)
+        return next((b for b in as_list(api.get(base)) if str(b.get('peer_target')).lower() == p['peer_target'].lower()), None)
 
     peer = fetch()
 

@@ -15,8 +15,8 @@ def test_vps_ssh_keys_body_is_a_bare_list(run):
 
 
 def test_baremetal_protect(run):
-    status, result, api = run(baremetal_action, {'action': 'protect', 'baremetal_id': 9}, {})
-    assert api.writes() == [('POST', '/baremetal/9/protection', {'enabled': True}, None)]
+    status, result, api = run(baremetal_action, {'action': 'protect', 'baremetal_id': '6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31'}, {})
+    assert api.writes() == [('POST', '/baremetal/6f1c2a9e-3b7d-4e58-9a10-5c2d8e4f7b31/protection', {'enabled': True}, None)]
 
 
 def test_cdn_purge_everything(run):

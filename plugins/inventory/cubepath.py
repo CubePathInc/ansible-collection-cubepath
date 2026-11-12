@@ -9,6 +9,7 @@ short_description: CubePath Cloud dynamic inventory
 description:
     - Dynamically generate inventory from CubePath Cloud infrastructure.
     - Groups hosts by project, location, type (vps/baremetal), and status.
+    - On baremetal hosts C(cubepath_id) is the server uuid, and C(cubepath_uuid) carries the same value.
 version_added: "1.1.0"
 author: CubePath (@cubepath)
 options:

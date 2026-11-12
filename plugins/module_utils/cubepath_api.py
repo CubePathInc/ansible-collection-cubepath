@@ -16,7 +16,7 @@ DEFAULT_API_URL = 'https://api.cubepath.com'
 # Version of the collection, the same as `version` in galaxy.yml (a unit test compares them, so a
 # release bumps both). It goes into the User-Agent of every request, so the API logs can tell the
 # collection versions apart.
-COLLECTION_VERSION = '1.7.0'
+COLLECTION_VERSION = '2.0.0'
 USER_AGENT = 'CubePathAnsible/%s' % COLLECTION_VERSION
 
 

@@ -18,7 +18,7 @@ UPPER = UUID.upper()
     (UUID, UUID), (UPPER, UUID),
     (10, None), ('10', None), ('007', None), (' %s ' % UUID, None),
     ('', None), ('abc', None), ('10a', None), ('-1', None), ('1.5', None), (UUID[:-1], None),
-    ('../etc', None), ('10/power', None), (None, None),
+    ('../etc', None), ('10/power', None), (None, None), (UUID + '\n', None),
 ])
 def test_normalize(value, expected):
     assert normalize_baremetal_ref(value) == expected
